@@ -1,0 +1,6 @@
+﻿ttkbootstrap
+watchdog
+pandas
+reportlab
+matplotlib
+pillow
