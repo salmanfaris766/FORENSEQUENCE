@@ -26,6 +26,7 @@ from gui.theme import (
     FONT_SMALL,
     FONT_MONO_BODY,
     FONT_MONO_SM,
+    SP_1,
     SP_2,
     SP_3,
     SP_4,
