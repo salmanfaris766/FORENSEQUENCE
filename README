@@ -1,0 +1,60 @@
+<div align="center">
+  
+# 🗄️ FORENSEQUENCE
+**AI-Based Digital Forensic Investigation & Real-Time Report Assistant**
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-0B0F2B.svg?style=for-the-badge&logo=python&logoColor=00F0FF)](https://www.python.org/)
+[![UI Desktop](https://img.shields.io/badge/UI-Tkinter%20%7C%20Glassmorphism-153C6A.svg?style=for-the-badge&logo=appveyor&logoColor=FF5CA8)](#)
+[![AI Engine](https://img.shields.io/badge/AI-Forward%20Chaining-2475AC.svg?style=for-the-badge&logo=scipy&logoColor=FFB86B)](#)
+[![License](https://img.shields.io/badge/License-MIT-042142.svg?style=for-the-badge)](#)
+
+> *"A desktop digital forensic assistant that extracts facts from multiple evidence sources, uses a Rule-Based Expert System with Forward Chaining to derive forensic findings in real time as new evidence appears, reconstructs the sequence of events, calculates a risk level, and generates an explainable forensic investigation report."*
+
+</div>
+
+---
+
+## 🔍 System Architecture
+
+FORENSEQUENCE does not rely on Machine Learning or external APIs. It is a deterministic, **Knowledge-Based Expert System** utilizing **Propositional Logic** and **Forward Chaining** to guarantee explainable, reproducible forensic findings.
+
+| Module | Core Functionality |
+| :--- | :--- |
+| **01. Case Management** | Multi-case tracking with SHA-256 evidence hashing for chain-of-custody integrity. |
+| **02. Evidence Analyzers** | Modular fact extraction from System Logs, File/Folder metadata, Browser History, and Emails. |
+| **03. AI Rule Engine** | Forward Chaining inference engine executing a custom forensic Knowledge Base (`rules.py`). |
+| **04. Risk & Timeline** | Weighted risk scoring (0–100 scale) and chronological event reconstruction. |
+| **05. Real-Time Monitor** | **Flagship Feature:** Live monitoring of evidence files with instant auto-reasoning and UI alerts. |
+| **06. Forensic Reports** | Automated generation of in-app and exportable PDF investigation reports. |
+
+---
+
+## 🎨 UI/UX: "Neon Forensics"
+The application features a custom, frameless desktop interface built on Tkinter, styled with a **Cyberpunk Glassmorphism** aesthetic. 
+* **Base:** Deep Void (`#0B0F2B`) & Abyss (`#042142`)
+* **Accents:** Vice Cyan (`#00F0FF`) & Sunset Pink (`#FF5CA8`)
+* **Visuals:** Translucent glass panels, vector-drawn iconography, and smooth 60FPS UI rendering without blocking the background processing threads.
+
+---
+
+## 👥 The Investigation Team
+
+This project is built collaboratively, dividing the architecture between frontend/systems and AI/analytics.
+
+* **Salman** (Initial Architecture & Systems)
+  * UI/UX Engineering & Glassmorphism Implementation
+  * Evidence Parsers, Case Management & SQLite DB
+  * Live Monitoring Threading (`watchdog` + Queues)
+* **Kavya** (AI Reasoning & Analytics)
+  * Knowledge Base Engineering (`rules.py`)
+  * Forward Chaining Algorithm (`rule_engine.py`)
+  * Risk Scoring, Timeline Reconstruction & PDF Reporting
+
+---
+
+## ⚙️ Development Setup
+
+**1. Clone the repository**
+```bash
+git clone https://github.com/YourUsername/forensequence.git
+cd forensequence
