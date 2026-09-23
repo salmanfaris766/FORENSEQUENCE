@@ -1,333 +1,301 @@
-﻿# =============================================================================
+# =============================================================================
 # main.py
-# FORENSEQUENCE - Phase 1 Theme Lab
-# Visual QA harness for all design system primitives.
+# FORENSEQUENCE - Main Entry Point & Custom Frameless Shell Runtime
 # =============================================================================
 
+import sys
 import tkinter as tk
 import ttkbootstrap as ttk
 
 from gui.theme import (
-    # Color tokens
-    VOID, DEEP, ABYSS, STEEL,
-    CYAN, PINK, PEACH, PURPLE, PLUM,
-    TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED,
-    # Spacing
-    SP_2, SP_3, SP_4, SP_6, SP_8, SP_12,
-    # Font specs
-    FONT_HEADING, FONT_BODY, FONT_MONO_BODY, FONT_SMALL, FS_XS,
+    VOID,
+    ABYSS,
+    DEEP,
+    STEEL,
+    CYAN,
+    ICE,
+    PINK,
+    MAGENTA,
+    PURPLE,
+    PLUM,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    TEXT_MUTED,
     FONT_FALLBACK,
-    # Helpers
-    apply_theme, risk_color, risk_label,
-    # Primitives
-    create_glass_frame,
-    create_neon_button,
-    create_section_header,
-    create_badge,
-    create_styled_entry,
-    create_divider,
+    FONT_HEADING,
+    FONT_SECTION,
+    FONT_BODY,
+    FONT_SMALL,
+    SP_1,
+    SP_2,
+    SP_3,
+    SP_4,
+    apply_theme,
 )
+from gui.splash_screen import SplashScreen
+from gui.shell import AppShell
 
 
-def build_theme_lab(app: ttk.Window) -> None:
+class CustomTitleBar(ttk.Frame):
     """
-    Construct the Phase 1 Theme Lab layout.
-    Every primitive is exercised exactly once so the palette and components
-    can be visually verified before any screens are built.
+    Custom title bar for the frameless application window.
+    Provides window dragging, maximize/restore, minimize, and close controls
+    with Cyberpunk neon hover effects.
     """
 
-    # -- Root scroll canvas so content is accessible at any window size --
-    root_canvas = tk.Canvas(app, bg=VOID, highlightthickness=0)
-    scrollbar = ttk.Scrollbar(app, orient="vertical", command=root_canvas.yview)
-    root_canvas.configure(yscrollcommand=scrollbar.set)
-    scrollbar.pack(side="right", fill="y")
-    root_canvas.pack(side="left", fill="both", expand=True)
+    def __init__(self, parent: tk.Tk, on_close_callback=None):
+        super().__init__(parent, height=36, style="Panel.TFrame")
+        self.parent = parent
+        self.on_close_callback = on_close_callback
 
-    # Scrollable inner container
-    container = ttk.Frame(root_canvas, style="TFrame")
-    container_id = root_canvas.create_window((0, 0), window=container, anchor="nw")
+        self.pack_propagate(False)
+        self._drag_start_x = 0
+        self._drag_start_y = 0
+        self._is_maximized = False
+        self._normal_geometry = "1280x800+100+100"
 
-    def _on_configure(event):
-        root_canvas.configure(scrollregion=root_canvas.bbox("all"))
-        root_canvas.itemconfig(container_id, width=root_canvas.winfo_width())
+        self._build_ui()
+        self._bind_drag_events()
 
-    container.bind("<Configure>", _on_configure)
-    root_canvas.bind("<Configure>", lambda e: root_canvas.itemconfig(container_id, width=e.width))
+    def _build_ui(self) -> None:
+        """Render the custom title bar elements."""
+        # Left branding
+        left_box = ttk.Frame(self, style="Panel.TFrame")
+        left_box.pack(side="left", padx=SP_4, fill="y")
 
-    def _on_mousewheel(event):
-        root_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-    root_canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
-    # -- Page padding wrapper --
-    page = ttk.Frame(container, style="TFrame", padding=(SP_8, SP_8, SP_8, SP_8))
-    page.pack(fill="both", expand=True)
-
-    # =========================================================================
-    # SECTION 1: Application Title
-    # =========================================================================
-
-    ttk.Label(
-        page,
-        text="FORENSEQUENCE",
-        foreground=CYAN,
-        background=VOID,
-        font=(FONT_FALLBACK, 28, "bold"),
-        anchor="w",
-    ).pack(fill="x", pady=(0, SP_2))
-
-    ttk.Label(
-        page,
-        text="Phase 1 — Theme Lab & Design System Verification",
-        foreground=TEXT_SECONDARY,
-        background=VOID,
-        font=FONT_BODY,
-        anchor="w",
-    ).pack(fill="x", pady=(0, SP_4))
-
-    create_divider(page, color=CYAN).pack(fill="x", pady=(0, SP_6))
-
-    # =========================================================================
-    # SECTION 2: Glass Panel
-    # =========================================================================
-
-    _section(page, "GLASS PANEL PRIMITIVE")
-
-    glass = create_glass_frame(page, width=720, height=140, radius=14, border_color=CYAN)
-    glass.pack(anchor="w", pady=(SP_3, SP_6))
-
-    inner = glass.inner_frame
-    ttk.Label(
-        inner,
-        text="Glass Panel — Card.TFrame surface rendered on Canvas",
-        foreground=TEXT_PRIMARY,
-        background=DEEP,
-        font=(FONT_FALLBACK, 11, "bold"),
-        anchor="w",
-    ).pack(fill="x", padx=SP_4, pady=(SP_4, SP_2))
-
-    ttk.Label(
-        inner,
-        text="Neon hairline border  |  Layered glow simulation  |  Rounded corners  |  Dark translucent fill",
-        foreground=TEXT_SECONDARY,
-        background=DEEP,
-        font=FONT_SMALL,
-        anchor="w",
-    ).pack(fill="x", padx=SP_4)
-
-    # Pink-variant glass
-    glass_pink = create_glass_frame(
-        page, width=720, height=80, radius=14, border_color=PINK, fill_color=ABYSS
-    )
-    glass_pink.pack(anchor="w", pady=(0, SP_6))
-
-    inner_pink = glass_pink.inner_frame
-    ttk.Label(
-        inner_pink,
-        text="Pink border variant — ABYSS fill  |  Used for alert / high-severity panels",
-        foreground=PINK,
-        background=ABYSS,
-        font=FONT_SMALL,
-        anchor="w",
-    ).pack(fill="x", padx=SP_4, pady=SP_3)
-
-    # =========================================================================
-    # SECTION 3: Neon Buttons
-    # =========================================================================
-
-    _section(page, "NEON BUTTON VARIANTS")
-
-    btn_row = ttk.Frame(page, style="TFrame")
-    btn_row.pack(anchor="w", pady=(SP_3, SP_6))
-
-    variants = [
-        ("RUN ANALYSIS", "primary"),
-        ("EXPORT REPORT", "secondary"),
-        ("DELETE CASE", "danger"),
-        ("VIEW LOG", "ghost"),
-    ]
-    for label_text, var in variants:
-        btn = create_neon_button(btn_row, text=label_text, variant=var)
-        btn.pack(side="left", padx=(0, SP_3))
-
-    ttk.Label(
-        page,
-        text="Hover each button to verify glow / fill transitions",
-        foreground=TEXT_MUTED,
-        background=VOID,
-        font=FONT_SMALL,
-        anchor="w",
-    ).pack(fill="x", pady=(0, SP_6))
-
-    # =========================================================================
-    # SECTION 4: Section Headers
-    # =========================================================================
-
-    _section(page, "SECTION HEADER COMPONENT")
-
-    for sample in ["Evidence Summary", "AI Findings", "Case Timeline", "Live Monitor"]:
-        create_section_header(page, sample).pack(anchor="w", pady=(0, SP_2))
-
-    _spacer(page)
-
-    # =========================================================================
-    # SECTION 5: Badges
-    # =========================================================================
-
-    _section(page, "BADGE COMPONENTS")
-
-    badge_row = ttk.Frame(page, style="TFrame")
-    badge_row.pack(anchor="w", pady=(SP_3, SP_6))
-
-    badges = [
-        ("LOG", CYAN),
-        ("FILE", PURPLE),
-        ("BROWSER", PEACH),
-        ("EMAIL", PINK),
-        ("HIGH", PINK),
-        ("MEDIUM", PEACH),
-        ("LOW", CYAN),
-        ("AI INFERRED", PURPLE),
-    ]
-    for b_text, b_color in badges:
-        badge = create_badge(badge_row, text=b_text, color=b_color)
-        badge.pack(side="left", padx=(0, SP_2))
-
-    # =========================================================================
-    # SECTION 6: Styled Entry
-    # =========================================================================
-
-    _section(page, "STYLED ENTRY — CYAN FOCUS GLOW")
-
-    entry_row = ttk.Frame(page, style="TFrame")
-    entry_row.pack(fill="x", pady=(SP_3, SP_6))
-
-    e1 = create_styled_entry(entry_row, placeholder="Search evidence files...")
-    e1.pack(side="left", fill="x", expand=True, padx=(0, SP_4), ipady=SP_2)
-
-    e2 = create_styled_entry(entry_row, placeholder="Case identifier...")
-    e2.pack(side="left", fill="x", expand=True, ipady=SP_2)
-
-    ttk.Label(
-        page,
-        text="Click an entry field to see the CYAN highlight border activate",
-        foreground=TEXT_MUTED,
-        background=VOID,
-        font=FONT_SMALL,
-        anchor="w",
-    ).pack(fill="x", pady=(0, SP_6))
-
-    # =========================================================================
-    # SECTION 7: Divider
-    # =========================================================================
-
-    _section(page, "DIVIDER COMPONENT")
-
-    create_divider(page, color=PLUM).pack(fill="x", pady=(SP_3, SP_2))
-    create_divider(page, color=CYAN).pack(fill="x", pady=(SP_2, SP_2))
-    create_divider(page, color=PINK).pack(fill="x", pady=(SP_2, SP_6))
-
-    ttk.Label(
-        page, text="PLUM / CYAN / PINK divider variants shown above",
-        foreground=TEXT_MUTED, background=VOID, font=FONT_SMALL, anchor="w",
-    ).pack(fill="x", pady=(0, SP_6))
-
-    # =========================================================================
-    # SECTION 8: Typography Scale
-    # =========================================================================
-
-    _section(page, "TYPOGRAPHY & TEXT HIERARCHY")
-
-    type_rows = [
-        ("TEXT_PRIMARY   #EAF6FF", TEXT_PRIMARY, FONT_BODY),
-        ("TEXT_SECONDARY #8FA3C7", TEXT_SECONDARY, FONT_BODY),
-        ("TEXT_MUTED     #5A6B8C", TEXT_MUTED,    FONT_SMALL),
-        ("MONO BODY — log output / code traces", TEXT_PRIMARY, (FONT_FALLBACK, 11, "normal")),
-    ]
-    for t, color, font in type_rows:
-        ttk.Label(
-            page, text=t,
-            foreground=color, background=VOID, font=font, anchor="w",
-        ).pack(fill="x", pady=(0, SP_2))
-
-    _spacer(page)
-
-    # =========================================================================
-    # SECTION 9: Risk Band Verification
-    # =========================================================================
-
-    _section(page, "RISK SCORING ENGINE VERIFICATION")
-
-    risk_scores = [10, 45, 80]
-    risk_row = ttk.Frame(page, style="TFrame")
-    risk_row.pack(anchor="w", pady=(SP_3, SP_6))
-
-    for score in risk_scores:
-        color  = risk_color(score)
-        label  = risk_label(score)
-
-        swatch_frame = ttk.Frame(risk_row, style="TFrame")
-        swatch_frame.pack(side="left", padx=(0, SP_6))
-
-        # Color swatch
-        swatch = tk.Canvas(
-            swatch_frame, width=56, height=56,
-            bg=VOID, highlightthickness=0, bd=0,
+        # Cyan Accent Block
+        accent_canvas = tk.Canvas(
+            left_box, width=4, height=18, bg=ABYSS, highlightthickness=0, bd=0
         )
-        swatch.pack(pady=(0, SP_2))
-        swatch.create_rectangle(4, 4, 52, 52, fill=color, outline=color)
+        accent_canvas.pack(side="left", padx=(0, SP_2), pady=9)
+        accent_canvas.create_rectangle(0, 0, 4, 18, fill=CYAN, outline="")
 
-        ttk.Label(
-            swatch_frame,
-            text=f"Score: {score}",
-            foreground=TEXT_SECONDARY, background=VOID, font=FONT_SMALL, anchor="center",
-        ).pack()
-        ttk.Label(
-            swatch_frame,
-            text=label,
-            foreground=color, background=VOID, font=(FONT_FALLBACK, 10, "bold"), anchor="center",
-        ).pack()
+        title_lbl = ttk.Label(
+            left_box,
+            text="FORENSEQUENCE",
+            foreground=CYAN,
+            background=ABYSS,
+            font=(FONT_FALLBACK, 10, "bold"),
+        )
+        title_lbl.pack(side="left", pady=8)
 
-    create_divider(page, color=PLUM).pack(fill="x", pady=(SP_6, SP_4))
+        sep_lbl = ttk.Label(
+            left_box,
+            text="|",
+            foreground=PLUM,
+            background=ABYSS,
+            font=(FONT_FALLBACK, 10, "normal"),
+        )
+        sep_lbl.pack(side="left", padx=SP_2, pady=8)
 
-    ttk.Label(
-        page,
-        text="Phase 1 verification complete — all primitives rendered. Proceed to Phase 2.",
-        foreground=TEXT_MUTED,
-        background=VOID,
-        font=FONT_SMALL,
-        anchor="w",
-    ).pack(fill="x", pady=(0, SP_8))
+        sub_lbl = ttk.Label(
+            left_box,
+            text="DIGITAL FORENSIC INVESTIGATION SUITE",
+            foreground=TEXT_MUTED,
+            background=ABYSS,
+            font=(FONT_FALLBACK, 8, "normal"),
+        )
+        sub_lbl.pack(side="left", pady=8)
+
+        # Right Window Control Buttons
+        ctrl_box = ttk.Frame(self, style="Panel.TFrame")
+        ctrl_box.pack(side="right", fill="y")
+
+        # Minimize Button
+        self.btn_min = self._create_ctrl_btn(
+            ctrl_box, symbol="—", command=self._minimize_window, hover_color=CYAN
+        )
+        self.btn_min.pack(side="left")
+
+        # Maximize / Restore Button
+        self.btn_max = self._create_ctrl_btn(
+            ctrl_box, symbol="□", command=self._toggle_maximize, hover_color=CYAN
+        )
+        self.btn_max.pack(side="left")
+
+        # Close Button
+        self.btn_close = self._create_ctrl_btn(
+            ctrl_box, symbol="✕", command=self._close_window, hover_color=PINK, is_close=True
+        )
+        self.btn_close.pack(side="left")
+
+    def _create_ctrl_btn(
+        self,
+        parent: tk.Misc,
+        symbol: str,
+        command,
+        hover_color: str,
+        is_close: bool = False,
+    ) -> tk.Canvas:
+        """Create a canvas-based window control button with neon hover."""
+        w, h = 46, 36
+        c = tk.Canvas(
+            parent,
+            width=w,
+            height=h,
+            bg=ABYSS,
+            highlightthickness=0,
+            bd=0,
+            cursor="hand2",
+        )
+
+        def draw(bg: str, fg: str):
+            c.delete("all")
+            c.create_rectangle(0, 0, w, h, fill=bg, outline="")
+            c.create_text(
+                w // 2,
+                h // 2,
+                text=symbol,
+                fill=fg,
+                font=(FONT_FALLBACK, 10, "bold" if is_close else "normal"),
+                anchor="center",
+            )
+
+        draw(ABYSS, TEXT_SECONDARY)
+
+        def on_enter(_):
+            if is_close:
+                draw("#4a0f2b", PINK)
+            else:
+                draw(DEEP, hover_color)
+
+        def on_leave(_):
+            draw(ABYSS, TEXT_SECONDARY)
+
+        def on_click(_):
+            command()
+
+        c.bind("<Enter>", on_enter)
+        c.bind("<Leave>", on_leave)
+        c.bind("<Button-1>", on_click)
+
+        return c
+
+    def _bind_drag_events(self) -> None:
+        """Bind mouse events to allow window dragging and double-click maximize."""
+        self.bind("<ButtonPress-1>", self._on_drag_start)
+        self.bind("<B1-Motion>", self._on_drag_motion)
+        self.bind("<Double-Button-1>", lambda e: self._toggle_maximize())
+
+    def _on_drag_start(self, event) -> None:
+        self._drag_start_x = event.x_root - self.parent.winfo_x()
+        self._drag_start_y = event.y_root - self.parent.winfo_y()
+
+    def _on_drag_motion(self, event) -> None:
+        if self._is_maximized:
+            # Restore before dragging if maximized
+            self._toggle_maximize()
+            self._drag_start_x = event.x_root - self.parent.winfo_x()
+            self._drag_start_y = event.y_root - self.parent.winfo_y()
+
+        new_x = event.x_root - self._drag_start_x
+        new_y = event.y_root - self._drag_start_y
+        self.parent.geometry(f"+{new_x}+{new_y}")
+
+    def _minimize_window(self) -> None:
+        """Minimize frameless window."""
+        try:
+            self.parent.overrideredirect(False)
+            self.parent.iconify()
+        except Exception:
+            self.parent.iconify()
+
+    def _toggle_maximize(self) -> None:
+        """Toggle maximize/restore state."""
+        if not self._is_maximized:
+            self._normal_geometry = self.parent.geometry()
+            screen_w = self.parent.winfo_screenwidth()
+            screen_h = self.parent.winfo_screenheight()
+            self.parent.geometry(f"{screen_w}x{screen_h-40}+0+0")
+            self._is_maximized = True
+        else:
+            self.parent.geometry(self._normal_geometry)
+            self._is_maximized = False
+
+    def _close_window(self) -> None:
+        if self.on_close_callback:
+            self.on_close_callback()
+        else:
+            self.parent.destroy()
 
 
-# =============================================================================
-# LAYOUT HELPERS (internal to main.py only)
-# =============================================================================
+class ForensequenceApp:
+    """
+    Core Application Controller.
+    Manages the root frameless window, custom titlebar,
+    splash screen sequence, and main application shell mounting.
+    """
 
-def _section(parent, text: str) -> None:
-    """Render a section header + thin divider."""
-    create_section_header(parent, text).pack(fill="x", pady=(0, SP_2))
-    create_divider(parent, color=PLUM).pack(fill="x", pady=(0, SP_3))
+    def __init__(self):
+        self.root = ttk.Window(themename="darkly")
+        self.root.title("FORENSEQUENCE - Digital Forensic Suite")
+        
+        # Dimensions
+        self.width = 1280
+        self.height = 800
+        self.min_width = 1200
+        self.min_height = 760
 
+        # Center on screen
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        start_x = max(0, (screen_w - self.width) // 2)
+        start_y = max(0, (screen_h - self.height) // 2)
 
-def _spacer(parent, height: int = 16) -> None:
-    ttk.Frame(parent, style="TFrame", height=height).pack()
+        self.root.geometry(f"{self.width}x{self.height}+{start_x}+{start_y}")
+        self.root.minsize(self.min_width, self.min_height)
 
+        # Apply global theme tokens
+        apply_theme(self.root)
 
-# =============================================================================
-# ENTRY POINT
-# =============================================================================
+        # Enable frameless window with custom titlebar
+        self._setup_frameless()
+
+        # Top Custom Titlebar
+        self.titlebar = CustomTitleBar(self.root, on_close_callback=self._on_close)
+        self.titlebar.pack(fill="x", side="top")
+
+        # Main Workspace Container
+        self.workspace_frame = ttk.Frame(self.root, style="TFrame")
+        self.workspace_frame.pack(fill="both", expand=True)
+
+        # Mount Splash Screen first
+        self.splash = SplashScreen(self.workspace_frame, on_complete=self._mount_main_shell)
+        self.splash.pack(fill="both", expand=True)
+
+        self.shell: AppShell | None = None
+
+    def _setup_frameless(self) -> None:
+        """Configure frameless window behavior with taskbar restoration."""
+        try:
+            self.root.overrideredirect(True)
+
+            def _on_map(event):
+                if self.root.state() == "normal":
+                    self.root.overrideredirect(True)
+
+            self.root.bind("<Map>", _on_map)
+        except Exception:
+            # Safe fallback to standard window if overrideredirect unsupported
+            pass
+
+    def _mount_main_shell(self) -> None:
+        """Called upon completion of the splash screen animation."""
+        self.shell = AppShell(self.workspace_frame)
+        self.shell.pack(fill="both", expand=True)
+
+    def _on_close(self) -> None:
+        """Gracefully terminate background jobs and close application."""
+        self.root.destroy()
+
+    def run(self) -> None:
+        """Start the Tkinter event loop."""
+        self.root.mainloop()
+
 
 def main() -> None:
-    app = ttk.Window(themename="darkly")
-    app.title("FORENSEQUENCE - Theme Lab")
-    app.geometry("1200x760")
-    app.minsize(900, 600)
-
-    apply_theme(app)
-    build_theme_lab(app)
-
-    app.mainloop()
+    app = ForensequenceApp()
+    app.run()
 
 
 if __name__ == "__main__":
