@@ -11,6 +11,7 @@
 
 import sqlite3
 import os
+import time
 from typing import Optional
 
 # ---------------------------------------------------------------------------
@@ -385,14 +386,16 @@ if __name__ == "__main__":
     print("[OK] Database initialized:", _DB_PATH)
     print()
 
-    # Step 2: Create a sample case
+    # Step 2: Create a sample case with a unique timestamp-based case number.
+    # Using a timestamp suffix makes this block idempotent across repeated runs.
+    test_case_number = "CASE-TEST-{}".format(int(time.time()))
     case_id = create_case(
-        case_number="CASE-2025-001",
+        case_number=test_case_number,
         case_name="Corporate Log Breach",
         investigator="Salman",
         description="Initial test case - unauthorized access via compromised credentials.",
     )
-    print("[OK] Case created with ID:", case_id)
+    print("[OK] Case created | number: {} | ID: {}".format(test_case_number, case_id))
 
     # Step 3: Add sample evidence
     evidence_id = add_evidence(
