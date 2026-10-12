@@ -108,6 +108,7 @@ def create_case(
     case_name: str,
     investigator: str,
     description: str = "",
+    status: str = "OPEN",
 ) -> int:
     """
     Insert a new case record and return its auto-assigned integer ID.
@@ -118,6 +119,7 @@ def create_case(
     case_name    : Descriptive title of the case.
     investigator : Name of the assigned investigator.
     description  : Optional free-text case description (default empty string).
+    status       : Initial case status string, default 'OPEN'.
 
     Returns
     -------
@@ -130,11 +132,11 @@ def create_case(
         If a case with the same case_number already exists.
     """
     sql = (
-        "INSERT INTO cases (case_number, case_name, investigator, description) "
-        "VALUES (?, ?, ?, ?)"
+        "INSERT INTO cases (case_number, case_name, investigator, description, status) "
+        "VALUES (?, ?, ?, ?, ?)"
     )
     with _get_connection() as conn:
-        cursor = conn.execute(sql, (case_number, case_name, investigator, description))
+        cursor = conn.execute(sql, (case_number, case_name, investigator, description, status))
         return cursor.lastrowid
 
 

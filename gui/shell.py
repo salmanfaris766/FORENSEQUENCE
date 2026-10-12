@@ -374,11 +374,26 @@ class AppShell(ttk.Frame):
                 on_select_case_callback=self._handle_dashboard_select_case,
                 shell=self,
             )
+        elif route_name == "Cases":
+            self._current_screen_widget = frame_class(
+                self.content_container,
+                on_navigate=self.show_screen,
+                on_case_created=self._handle_case_created,
+                on_open_case=self._handle_dashboard_select_case,
+                shell=self,
+            )
         else:
             self._current_screen_widget = frame_class(self.content_container, shell=self)
 
         self._current_screen_widget.pack(fill="both", expand=True)
         self._current_screen_name = route_name
+
+    def _handle_case_created(self, case_id: int) -> None:
+        """Update case context when a new case is registered."""
+        self.selected_case_id = case_id
+        case = get_case_by_id(case_id)
+        if case:
+            self.set_case_context(f"CASE: {case['case_number']} | {case['case_name']}")
 
     def _handle_dashboard_navigate(self, target: str) -> None:
         """Handle screen navigation requests initiated by the Dashboard."""
