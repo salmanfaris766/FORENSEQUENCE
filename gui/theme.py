@@ -443,6 +443,7 @@ def create_glass_frame(
         width=width - (pad * 2) - 4,
         height=height - (pad * 2) - 4,
     )
+    inner._custom_bg = fill_color
     canvas.inner_frame = inner
 
     return canvas
@@ -453,6 +454,7 @@ def create_neon_button(
     text: str,
     command=None,
     variant: str = "primary",
+    bg: str = None,
 ) -> tk.Canvas:
     """
     Create a Canvas-based neon-styled button.
@@ -486,11 +488,12 @@ def create_neon_button(
     }
     s = variant_styles.get(variant, variant_styles["secondary"])
 
+    canvas_bg = bg if bg is not None else _get_parent_bg(parent)
     canvas = tk.Canvas(
         parent,
         width=btn_w,
         height=btn_h,
-        bg=_get_parent_bg(parent),
+        bg=canvas_bg,
         highlightthickness=0,
         bd=0,
         cursor="hand2",
@@ -550,7 +553,7 @@ def create_section_header(parent, text: str) -> ttk.Label:
     return label
 
 
-def create_badge(parent, text: str, color: str) -> tk.Canvas:
+def create_badge(parent, text: str, color: str, bg: str = None) -> tk.Canvas:
     """
     Create a pill-shaped badge with a colored border and matching text.
     Used for evidence type tags and severity indicators.
@@ -568,11 +571,12 @@ def create_badge(parent, text: str, color: str) -> tk.Canvas:
     h = th + pad_y * 2
     radius = h // 2
 
+    canvas_bg = bg if bg is not None else _get_parent_bg(parent)
     canvas = tk.Canvas(
         parent,
         width=w,
         height=h,
-        bg=_get_parent_bg(parent),
+        bg=canvas_bg,
         highlightthickness=0,
         bd=0,
     )
@@ -653,10 +657,14 @@ def _get_parent_bg(parent) -> str:
     Attempt to retrieve the background color of a parent widget.
     Falls back to VOID if unavailable.
     """
+    if hasattr(parent, "_custom_bg"):
+        return parent._custom_bg
     try:
         bg = parent.cget("background")
         if bg:
             return bg
     except Exception:
         pass
+    if hasattr(parent, "master") and hasattr(parent.master, "_custom_bg"):
+        return parent.master._custom_bg
     return VOID

@@ -47,6 +47,8 @@ from gui.report_frame import ReportFrame
 from gui.settings_frame import SettingsFrame
 from gui.about_frame import AboutFrame
 
+from database import get_case_by_id
+
 
 class NavItem(tk.Canvas):
     """
@@ -176,6 +178,7 @@ class AppShell(ttk.Frame):
         self._current_screen_name: Optional[str] = None
         self._current_screen_widget: Optional[ttk.Frame] = None
         self._is_live_active = False
+        self.selected_case_id: Optional[int] = None
 
         self._build_layout()
         self._init_clock()
@@ -349,6 +352,8 @@ class AppShell(ttk.Frame):
             return
 
         if self._current_screen_name == route_name and self._current_screen_widget:
+            if hasattr(self._current_screen_widget, "refresh_data"):
+                self._current_screen_widget.refresh_data()
             return
 
         # Destroy or unpack previous screen
@@ -362,9 +367,35 @@ class AppShell(ttk.Frame):
 
         # Instantiate and display the new frame
         frame_class = self._routes[route_name]
-        self._current_screen_widget = frame_class(self.content_container, shell=self)
+        if route_name == "Dashboard":
+            self._current_screen_widget = frame_class(
+                self.content_container,
+                on_navigate_callback=self._handle_dashboard_navigate,
+                on_select_case_callback=self._handle_dashboard_select_case,
+                shell=self,
+            )
+        else:
+            self._current_screen_widget = frame_class(self.content_container, shell=self)
+
         self._current_screen_widget.pack(fill="both", expand=True)
         self._current_screen_name = route_name
+
+    def _handle_dashboard_navigate(self, target: str) -> None:
+        """Handle screen navigation requests initiated by the Dashboard."""
+        if target in ("create_case", "create", "Cases"):
+            self.show_screen("Cases")
+        elif target in self._routes:
+            self.show_screen(target)
+
+    def _handle_dashboard_select_case(self, case_id: int) -> None:
+        """Handle case selection from Dashboard, setting case context and opening Evidence Detail."""
+        self.selected_case_id = case_id
+        case = get_case_by_id(case_id)
+        if case:
+            self.set_case_context(f"CASE: {case['case_number']} | {case['case_name']}")
+        else:
+            self.set_case_context(f"CASE #{case_id}")
+        self.show_screen("Evidence")
 
     # -------------------------------------------------------------------------
     # Status Bar API
