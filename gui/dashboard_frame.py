@@ -7,6 +7,8 @@ import tkinter as tk
 import ttkbootstrap as ttk
 from typing import Optional, Callable
 
+from gui.risk_gauge_widget import CyberpunkRiskGauge
+
 from gui.theme import (
     VOID,
     ABYSS,
@@ -205,38 +207,57 @@ class DashboardFrame(ttk.Frame):
         )
         self.lbl_total_evidence_sub.pack(anchor="w", padx=SP_4)
 
-        # Card 3: HIGH-RISK FINDINGS (PINK large number in Orbitron font)
+        # Card 3: SYSTEM THREAT LEVEL - Compact Risk Gauge (replaces plain number)
         card3 = create_glass_frame(
             self.cards_row, width=310, height=115, border_color=PINK, fill_color=DEEP
         )
         card3.pack(side="left")
         inner3 = card3.inner_frame
 
+        card3_row = ttk.Frame(inner3, style="Card.TFrame")
+        card3_row._custom_bg = DEEP
+        card3_row.pack(fill="both", expand=True, padx=SP_3, pady=SP_1)
+
+        # Left sub-block: label + high-risk count
+        card3_left = ttk.Frame(card3_row, style="Card.TFrame")
+        card3_left._custom_bg = DEEP
+        card3_left.pack(side="left", fill="y", anchor="w")
+
         ttk.Label(
-            inner3,
-            text="HIGH-RISK FINDINGS",
+            card3_left,
+            text="SYSTEM THREAT",
             foreground=TEXT_SECONDARY,
             background=DEEP,
             font=(FONT_FALLBACK, FS_SM, "bold"),
-        ).pack(anchor="w", padx=SP_4, pady=(SP_3, 0))
+        ).pack(anchor="w", pady=(SP_2, 0))
 
         self.lbl_high_risk_val = ttk.Label(
-            inner3,
+            card3_left,
             text="0",
             foreground=PINK,
             background=DEEP,
             font=(FONT_DISPLAY, 26, "bold"),
         )
-        self.lbl_high_risk_val.pack(anchor="w", padx=SP_4)
+        self.lbl_high_risk_val.pack(anchor="w")
 
         self.lbl_high_risk_sub = ttk.Label(
-            inner3,
-            text="Findings with severity >= 25",
+            card3_left,
+            text="High-risk findings",
             foreground=TEXT_MUTED,
             background=DEEP,
             font=FONT_SMALL,
         )
-        self.lbl_high_risk_sub.pack(anchor="w", padx=SP_4)
+        self.lbl_high_risk_sub.pack(anchor="w")
+
+        # Right sub-block: compact risk gauge
+        self.dashboard_gauge = CyberpunkRiskGauge(
+            card3_row,
+            size=108,
+            score=0,
+            compact=True,
+            bg=DEEP,
+        )
+        self.dashboard_gauge.pack(side="right", anchor="center")
 
         # ---------------------------------------------------------------------
         # 3. Recent Investigations Section Header
@@ -411,17 +432,27 @@ class DashboardFrame(ttk.Frame):
             text=f"Across {len(cases)} case repository items" if cases else "0 artifacts cataloged"
         )
 
-        # 3. Metric: High-Risk Findings (severity >= 25 across cases)
+        # 3. Metric: High-Risk Findings (severity >= 25 across cases) & overall score
         high_risk_findings = 0
+        all_findings = []
         for c in cases:
             findings = get_findings_for_case(c["id"])
+            all_findings.extend(findings)
             for f in findings:
                 if f.get("severity", 0) >= 25:
                     high_risk_findings += 1
         self.lbl_high_risk_val.config(text=str(high_risk_findings))
         self.lbl_high_risk_sub.config(
-            text="Threat findings requiring review" if high_risk_findings else "No high-risk alerts"
+            text="High-risk threat findings" if high_risk_findings else "No high-risk alerts"
         )
+
+        # Compute overall system risk score and animate the dashboard gauge
+        if all_findings:
+            total_sev = sum(f.get("severity", 0) for f in all_findings)
+            overall_score = min(100, total_sev)
+        else:
+            overall_score = 0
+        self.dashboard_gauge.set_score(overall_score, animate=True)
 
         # Update case count indicator
         self.lbl_case_count_badge.config(text=f"{len(cases)} TOTAL RECORDS")

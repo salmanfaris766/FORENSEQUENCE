@@ -8,6 +8,9 @@ import tkinter as tk
 import ttkbootstrap as ttk
 from typing import Optional, Callable, Dict, Any, List
 
+from gui.risk_gauge_widget import CyberpunkRiskGauge
+from analysis.risk_engine import calculate_risk
+
 from gui.theme import (
     VOID,
     ABYSS,
@@ -119,7 +122,7 @@ class AnalysisFrame(ttk.Frame):
         # 1. Top Header & Control Bar
         # ---------------------------------------------------------------------
         header_card = create_glass_frame(
-            self, width=960, height=95, border_color=PURPLE, fill_color=DEEP
+            self, width=960, height=130, border_color=PURPLE, fill_color=DEEP
         )
         header_card.pack(fill="x", padx=SP_6, pady=(SP_6, SP_3))
         inner_h = header_card.inner_frame
@@ -158,6 +161,20 @@ class AnalysisFrame(ttk.Frame):
             font=(FONT_DISPLAY, FS_SM, "bold"),
         )
         self.lbl_risk_score.pack(side="left")
+
+        # Center: Compact Risk Gauge
+        gauge_frame = ttk.Frame(inner_h, style="Card.TFrame")
+        gauge_frame._custom_bg = DEEP
+        gauge_frame.pack(side="left", fill="y", padx=SP_3, pady=SP_1)
+
+        self.header_gauge = CyberpunkRiskGauge(
+            gauge_frame,
+            size=140,
+            score=0,
+            compact=True,
+            bg=DEEP,
+        )
+        self.header_gauge.pack()
 
         # Right Action Bar: [RUN FORWARD CHAINING] & [CLEAR FINDINGS]
         right_h = ttk.Frame(inner_h, style="Card.TFrame")
@@ -552,7 +569,7 @@ class AnalysisFrame(ttk.Frame):
 
     def _render_analysis_state(self, facts: Dict[str, Any], result: Dict[str, Any]) -> None:
         """Update all visual panels with inference results."""
-        # 1. Update Header Badges & Risk Score
+        # 1. Update Header Badges, Risk Score & Gauge
         risk_score = result.get("risk_score", 0)
         risk_lvl = result.get("risk_level", "LOW")
         r_color = risk_color(risk_score)
@@ -563,6 +580,9 @@ class AnalysisFrame(ttk.Frame):
             child.destroy()
         badge = create_badge(self.risk_badge_container, f"RISK: {risk_lvl}", r_color, bg=DEEP)
         badge.pack(side="left")
+
+        # Animate the compact header gauge
+        self.header_gauge.set_score(risk_score, level=risk_lvl, animate=True)
 
         # 2. Update Section A Metrics
         for key, lbl in self.fact_metric_labels.items():
@@ -803,6 +823,9 @@ class AnalysisFrame(ttk.Frame):
                     child.destroy()
                 badge = create_badge(self.risk_badge_container, f"RISK: {r_lbl}", r_color, bg=DEEP)
                 badge.pack(side="left")
+
+                # Animate the header gauge for the loaded DB findings
+                self.header_gauge.set_score(score, level=r_lbl, animate=True)
 
                 self.lbl_findings_count.config(text=f"{len(db_findings)} FINDINGS")
                 for child in self.findings_content.winfo_children():
