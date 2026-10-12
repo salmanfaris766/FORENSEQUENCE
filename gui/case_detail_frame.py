@@ -614,7 +614,11 @@ class CaseDetailFrame(ttk.Frame):
         self.inv_canvas.bind("<Configure>", _on_inv_canvas_configure)
 
         def _on_mousewheel(event):
-            self.inv_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            try:
+                if self.inv_canvas.winfo_exists():
+                    self.inv_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            except Exception:
+                pass
 
         self.inv_canvas.bind("<Enter>", lambda _: self.inv_canvas.bind_all("<MouseWheel>", _on_mousewheel))
         self.inv_canvas.bind("<Leave>", lambda _: self.inv_canvas.unbind_all("<MouseWheel>"))

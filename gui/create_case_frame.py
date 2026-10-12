@@ -395,7 +395,11 @@ class CreateCaseFrame(ttk.Frame):
         self.archive_canvas.bind("<Configure>", _on_canvas_configure)
 
         def _on_mousewheel(event):
-            self.archive_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            try:
+                if self.archive_canvas.winfo_exists():
+                    self.archive_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            except Exception:
+                pass
 
         self.archive_canvas.bind(
             "<Enter>", lambda _: self.archive_canvas.bind_all("<MouseWheel>", _on_mousewheel)

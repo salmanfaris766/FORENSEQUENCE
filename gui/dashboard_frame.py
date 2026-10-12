@@ -289,7 +289,11 @@ class DashboardFrame(ttk.Frame):
         self.canvas_scroll.bind("<Configure>", _on_canvas_configure)
 
         def _on_mousewheel(event):
-            self.canvas_scroll.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            try:
+                if self.canvas_scroll.winfo_exists():
+                    self.canvas_scroll.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            except Exception:
+                pass
 
         self.canvas_scroll.bind("<Enter>", lambda _: self.canvas_scroll.bind_all("<MouseWheel>", _on_mousewheel))
         self.canvas_scroll.bind("<Leave>", lambda _: self.canvas_scroll.unbind_all("<MouseWheel>"))

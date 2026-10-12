@@ -25,6 +25,7 @@ from gui.theme import (
     FONT_SECTION,
     FONT_BODY,
     FONT_SMALL,
+    SP_1,
     SP_2,
     SP_3,
     SP_4,
