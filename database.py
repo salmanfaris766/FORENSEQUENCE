@@ -330,6 +330,25 @@ def get_findings_for_case(case_id: int) -> list:
         return [dict(row) for row in rows]
 
 
+def clear_findings_for_case(case_id: int) -> bool:
+    """
+    Remove all recorded AI / rule-engine findings for a given case.
+
+    Parameters
+    ----------
+    case_id : Parent case primary key.
+
+    Returns
+    -------
+    bool
+        True if findings were cleared or none existed.
+    """
+    sql = "DELETE FROM findings WHERE case_id = ?;"
+    with _get_connection() as conn:
+        cursor = conn.execute(sql, (case_id,))
+        return cursor.rowcount >= 0
+
+
 # =============================================================================
 # REPORTS DAL
 # =============================================================================

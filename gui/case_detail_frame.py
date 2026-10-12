@@ -824,6 +824,8 @@ class CaseDetailFrame(ttk.Frame):
 
     def _navigate(self, route_name: str) -> None:
         """Route to another application screen."""
+        if self.shell and self.case_id is not None:
+            self.shell.selected_case_id = self.case_id
         if self.on_navigate:
             self.on_navigate(route_name)
         elif self.shell:

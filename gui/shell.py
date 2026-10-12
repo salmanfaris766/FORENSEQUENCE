@@ -352,7 +352,7 @@ class AppShell(ttk.Frame):
             return
 
         if self._current_screen_name == route_name and self._current_screen_widget:
-            if route_name == "Evidence" and hasattr(self._current_screen_widget, "set_case"):
+            if route_name in ("Evidence", "Analysis") and hasattr(self._current_screen_widget, "set_case"):
                 self._current_screen_widget.set_case(self.selected_case_id)
             elif hasattr(self._current_screen_widget, "refresh_data"):
                 self._current_screen_widget.refresh_data()
@@ -384,7 +384,7 @@ class AppShell(ttk.Frame):
                 on_open_case=self._handle_dashboard_select_case,
                 shell=self,
             )
-        elif route_name == "Evidence":
+        elif route_name in ("Evidence", "Analysis"):
             self._current_screen_widget = frame_class(
                 self.content_container,
                 case_id=self.selected_case_id,
