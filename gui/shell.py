@@ -352,7 +352,9 @@ class AppShell(ttk.Frame):
             return
 
         if self._current_screen_name == route_name and self._current_screen_widget:
-            if hasattr(self._current_screen_widget, "refresh_data"):
+            if route_name == "Evidence" and hasattr(self._current_screen_widget, "set_case"):
+                self._current_screen_widget.set_case(self.selected_case_id)
+            elif hasattr(self._current_screen_widget, "refresh_data"):
                 self._current_screen_widget.refresh_data()
             return
 
@@ -380,6 +382,13 @@ class AppShell(ttk.Frame):
                 on_navigate=self.show_screen,
                 on_case_created=self._handle_case_created,
                 on_open_case=self._handle_dashboard_select_case,
+                shell=self,
+            )
+        elif route_name == "Evidence":
+            self._current_screen_widget = frame_class(
+                self.content_container,
+                case_id=self.selected_case_id,
+                on_navigate=self.show_screen,
                 shell=self,
             )
         else:
@@ -410,7 +419,14 @@ class AppShell(ttk.Frame):
             self.set_case_context(f"CASE: {case['case_number']} | {case['case_name']}")
         else:
             self.set_case_context(f"CASE #{case_id}")
-        self.show_screen("Evidence")
+        if (
+            self._current_screen_name == "Evidence"
+            and self._current_screen_widget
+            and hasattr(self._current_screen_widget, "set_case")
+        ):
+            self._current_screen_widget.set_case(case_id)
+        else:
+            self.show_screen("Evidence")
 
     # -------------------------------------------------------------------------
     # Status Bar API
