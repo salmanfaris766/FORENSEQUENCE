@@ -440,9 +440,10 @@ class AppShell(ttk.Frame):
         """Update the central case context label."""
         self.case_context_label.config(text=text)
 
-    def set_live_state(self, is_live: bool) -> None:
+    def set_live_state(self, is_live: bool, file_path: str = "") -> None:
         """
         Switch status bar live monitoring dot between IDLE (CYAN) and LIVE (PINK).
+        Optionally display the monitored file path in the status label.
         """
         self._is_live_active = is_live
         if is_live:
@@ -451,6 +452,49 @@ class AppShell(ttk.Frame):
         else:
             self.dot_canvas.itemconfig(self.dot_item, fill=CYAN)
             self.set_status("STATUS: IDLE")
+
+    def flash_alert(self, message: str, duration_ms: int = 4000) -> None:
+        """
+        Briefly display an alert message in the status bar using PINK text,
+        then restore the previous status text after duration_ms milliseconds.
+
+        Parameters
+        ----------
+        message : str
+            Alert text to display (should be concise, single-line).
+        duration_ms : int
+            How long to hold the alert before restoring normal status.
+        """
+        # Capture current text so we can restore it
+        try:
+            prev_text = self.status_label.cget("text")
+            prev_fg = self.status_label.cget("foreground")
+        except Exception:
+            prev_text = "STATUS: IDLE"
+            prev_fg = TEXT_SECONDARY
+
+        # Display the alert
+        self.status_label.config(
+            text=message[:80].upper(),
+            foreground=PINK,
+        )
+        self.dot_canvas.itemconfig(self.dot_item, fill=PINK)
+
+        # Restore after duration
+        def _restore():
+            try:
+                if self.status_label.winfo_exists():
+                    self.status_label.config(
+                        text=prev_text,
+                        foreground=prev_fg,
+                    )
+                    # Only reset dot if not actively monitoring
+                    if not self._is_live_active:
+                        self.dot_canvas.itemconfig(self.dot_item, fill=CYAN)
+            except Exception:
+                pass
+
+        self.after(duration_ms, _restore)
 
     # -------------------------------------------------------------------------
     # Clock Helper
