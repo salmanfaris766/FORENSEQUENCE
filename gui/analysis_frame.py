@@ -69,6 +69,12 @@ from database import (
     get_findings_for_case,
     clear_findings_for_case,
 )
+from analysis.timeline import (
+    build_timeline,
+    filter_timeline,
+    summarize_timeline,
+    TimelineBuilder,
+)
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -101,6 +107,10 @@ class AnalysisFrame(ttk.Frame):
         self._is_analyzing = False
         self.latest_facts: Dict[str, Any] = {}
         self.latest_result: Dict[str, Any] = {}
+        self.raw_timeline: List[Dict[str, Any]] = []
+        self.active_timeline_filter: str = "ALL"
+        self.timeline_sort_ascending: bool = True
+        self._filter_chips: Dict[str, tk.Widget] = {}
 
         self._build_ui()
         self.refresh_data()
@@ -212,11 +222,12 @@ class AnalysisFrame(ttk.Frame):
 
         self._build_facts_panel()
 
-        # --- Right Column (62% width): Section B & Section C ---
+        # --- Right Column (62% width): Section B, Section C & Section D ---
         self.right_column = ttk.Frame(self.body_container, style="TFrame")
         self.right_column.pack(side="left", fill="both", expand=True)
 
         self._build_findings_panel()
+        self._build_timeline_panel()
         self._build_trace_panel()
 
     # -------------------------------------------------------------------------
@@ -334,7 +345,7 @@ class AnalysisFrame(ttk.Frame):
     def _build_findings_panel(self) -> None:
         """Render the scrollable list of derived findings with proof cards."""
         glass = create_glass_frame(
-            self.right_column, width=580, height=270, border_color=STEEL, fill_color=DEEP
+            self.right_column, width=580, height=210, border_color=STEEL, fill_color=DEEP
         )
         glass.pack(fill="both", expand=True, pady=(0, SP_2))
         inner = glass.inner_frame
@@ -401,13 +412,403 @@ class AnalysisFrame(ttk.Frame):
         self.findings_scrollbar.pack(side="right", fill="y")
 
     # -------------------------------------------------------------------------
-    # Section C: Forward Chaining Reasoning Trace Terminal
+    # Section C: Chronological Event Sequence Timeline
+    # -------------------------------------------------------------------------
+
+    def _build_timeline_panel(self) -> None:
+        """Render the scrollable chronological timeline sequence with filter chips and neon spine."""
+        glass = create_glass_frame(
+            self.right_column, width=580, height=230, border_color=CYAN, fill_color=DEEP
+        )
+        glass.pack(fill="both", expand=True, pady=(0, SP_2))
+        inner = glass.inner_frame
+
+        # Header Row: Title + Sort Toggle + Event Count
+        hdr_row = ttk.Frame(inner, style="Card.TFrame")
+        hdr_row._custom_bg = DEEP
+        hdr_row.pack(fill="x", padx=SP_4, pady=(SP_2, 2))
+
+        create_section_header(hdr_row, "CHRONOLOGICAL EVENT SEQUENCE").pack(side="left")
+
+        right_hdr = ttk.Frame(hdr_row, style="Card.TFrame")
+        right_hdr._custom_bg = DEEP
+        right_hdr.pack(side="right")
+
+        self.btn_sort_order = tk.Label(
+            right_hdr,
+            text="[OLDEST FIRST]",
+            font=(FONT_FALLBACK, FS_XS, "bold"),
+            bg=DEEP,
+            fg=CYAN,
+            cursor="hand2",
+            padx=6,
+            pady=2,
+            bd=1,
+            relief="solid",
+            highlightthickness=1,
+            highlightbackground=PLUM,
+        )
+        self.btn_sort_order.pack(side="left", padx=(0, SP_2))
+        self.btn_sort_order.bind("<Enter>", lambda _: self.btn_sort_order.configure(fg=ICE, bg=ABYSS))
+        self.btn_sort_order.bind("<Leave>", lambda _: self.btn_sort_order.configure(fg=CYAN, bg=DEEP))
+        self.btn_sort_order.bind("<Button-1>", lambda _: self._toggle_sort_order())
+
+        self.lbl_timeline_count = ttk.Label(
+            right_hdr,
+            text="0 EVENTS",
+            foreground=TEXT_MUTED,
+            background=DEEP,
+            font=FONT_MONO_SM,
+        )
+        self.lbl_timeline_count.pack(side="left")
+
+        # Category Filter Chips Bar
+        self._build_filter_chips(inner)
+
+        create_divider(inner, color=PLUM).pack(fill="x", padx=SP_4, pady=(2, SP_2))
+
+        # Scrollable container for timeline events
+        scroll_wrapper = ttk.Frame(inner, style="Card.TFrame")
+        scroll_wrapper._custom_bg = DEEP
+        scroll_wrapper.pack(fill="both", expand=True, padx=SP_2, pady=(0, SP_2))
+
+        self.timeline_canvas = tk.Canvas(scroll_wrapper, bg=DEEP, highlightthickness=0, bd=0)
+        self.timeline_scrollbar = ttk.Scrollbar(
+            scroll_wrapper, orient="vertical", command=self.timeline_canvas.yview
+        )
+        self.timeline_canvas.configure(yscrollcommand=self.timeline_scrollbar.set)
+
+        self.timeline_content = ttk.Frame(self.timeline_canvas, style="Card.TFrame")
+        self.timeline_content._custom_bg = DEEP
+        self.timeline_win_id = self.timeline_canvas.create_window(
+            (0, 0), window=self.timeline_content, anchor="nw"
+        )
+
+        def _on_timeline_configure(event):
+            self.timeline_canvas.configure(scrollregion=self.timeline_canvas.bbox("all"))
+
+        def _on_timeline_canvas_configure(event):
+            self.timeline_canvas.itemconfig(self.timeline_win_id, width=event.width)
+
+        self.timeline_content.bind("<Configure>", _on_timeline_configure)
+        self.timeline_canvas.bind("<Configure>", _on_timeline_canvas_configure)
+
+        def _on_timeline_mousewheel(event):
+            try:
+                if self.timeline_canvas.winfo_exists():
+                    self.timeline_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            except Exception:
+                pass
+
+        self.timeline_canvas.bind(
+            "<Enter>", lambda _: self.timeline_canvas.bind_all("<MouseWheel>", _on_timeline_mousewheel)
+        )
+        self.timeline_canvas.bind(
+            "<Leave>", lambda _: self.timeline_canvas.unbind_all("<MouseWheel>")
+        )
+
+        self.timeline_canvas.pack(side="left", fill="both", expand=True)
+        self.timeline_scrollbar.pack(side="right", fill="y")
+
+    def _build_filter_chips(self, parent: tk.Widget) -> None:
+        """Render interactive category filter chips for forensic event sequence."""
+        chips_frame = ttk.Frame(parent, style="Card.TFrame")
+        chips_frame._custom_bg = DEEP
+        chips_frame.pack(fill="x", padx=SP_4, pady=(2, 2))
+
+        ttk.Label(
+            chips_frame,
+            text="FILTER:",
+            foreground=TEXT_MUTED,
+            background=DEEP,
+            font=(FONT_FALLBACK, FS_XS, "bold"),
+        ).pack(side="left", padx=(0, SP_2))
+
+        categories = [
+            ("ALL", "ALL"),
+            ("AUTH", "AUTH"),
+            ("EXEC", "EXEC"),
+            ("USB", "USB"),
+            ("DELETE", "DELETE"),
+            ("AI FINDINGS", "AI FINDINGS"),
+        ]
+
+        self._filter_chips = {}
+        for code, label in categories:
+            btn = tk.Label(
+                chips_frame,
+                text=label,
+                font=(FONT_FALLBACK, FS_XS, "bold"),
+                padx=6,
+                pady=1,
+                cursor="hand2",
+                bd=1,
+                relief="solid",
+                bg=ABYSS,
+                fg=TEXT_SECONDARY,
+                highlightthickness=1,
+                highlightbackground=STEEL,
+            )
+            btn.pack(side="left", padx=2)
+            btn.bind("<Button-1>", lambda e, c=code: self._set_timeline_filter(c))
+            self._filter_chips[code] = btn
+
+        self._update_filter_chip_styles()
+
+    def _set_timeline_filter(self, category_code: str) -> None:
+        """Update active category filter and re-render sequence."""
+        self.active_timeline_filter = category_code
+        self._update_filter_chip_styles()
+        self._render_timeline_entries()
+
+    def _update_filter_chip_styles(self) -> None:
+        """Refresh highlight borders and colors across filter chips."""
+        for code, btn in self._filter_chips.items():
+            if code == self.active_timeline_filter:
+                btn.configure(
+                    bg=CYAN,
+                    fg=VOID,
+                    highlightbackground=ICE,
+                )
+            else:
+                btn.configure(
+                    bg=ABYSS,
+                    fg=TEXT_SECONDARY,
+                    highlightbackground=STEEL,
+                )
+
+    def _toggle_sort_order(self) -> None:
+        """Toggle timeline sorting order between chronological ascending and descending."""
+        self.timeline_sort_ascending = not self.timeline_sort_ascending
+        btn_text = "[OLDEST FIRST]" if self.timeline_sort_ascending else "[NEWEST FIRST]"
+        self.btn_sort_order.config(text=btn_text)
+        self._render_timeline_entries()
+
+    def _get_category_node_color(self, category: str, severity: int = 0) -> str:
+        """Map event categories to Cyberpunk neon palette indicators."""
+        cat = category.lower()
+        if cat == "failed_login":
+            return PINK
+        elif cat == "successful_login":
+            return CYAN
+        elif cat == "usb_connection":
+            return PEACH
+        elif cat == "executable_event":
+            return PURPLE
+        elif cat == "deleted_file":
+            return MAGENTA
+        elif cat == "finding":
+            if severity >= 25:
+                return PINK
+            elif severity >= 15:
+                return PEACH
+            return PURPLE
+        return CYAN
+
+    def _render_timeline_entries(self) -> None:
+        """Render all matching timeline entries onto the scrollable canvas with neon spine lines."""
+        for child in self.timeline_content.winfo_children():
+            child.destroy()
+
+        if not self.raw_timeline:
+            empty_box = ttk.Frame(self.timeline_content, style="Card.TFrame")
+            empty_box._custom_bg = DEEP
+            empty_box.pack(fill="x", padx=SP_4, pady=SP_4)
+
+            ttk.Label(
+                empty_box,
+                text="NO TIMELINE EVENTS AVAILABLE",
+                foreground=TEXT_SECONDARY,
+                background=DEEP,
+                font=(FONT_FALLBACK, FS_MD, "bold"),
+            ).pack(anchor="w", pady=(0, 2))
+
+            ttk.Label(
+                empty_box,
+                text="No timeline events available. Run analysis on evidence with timestamps.",
+                foreground=TEXT_MUTED,
+                background=DEEP,
+                font=FONT_BODY,
+            ).pack(anchor="w")
+            self.lbl_timeline_count.config(text="0 EVENTS")
+            return
+
+        # Map filter code to category list
+        cat_map = {
+            "ALL": None,
+            "AUTH": ["failed_login", "successful_login"],
+            "EXEC": ["executable_event"],
+            "USB": ["usb_connection"],
+            "DELETE": ["deleted_file"],
+            "AI FINDINGS": ["finding"],
+        }
+        filter_cats = cat_map.get(self.active_timeline_filter, None)
+        filtered = filter_timeline(self.raw_timeline, categories=filter_cats)
+
+        if not self.timeline_sort_ascending:
+            filtered = list(reversed(filtered))
+
+        self.lbl_timeline_count.config(text=f"{len(filtered)} EVENTS")
+
+        if not filtered:
+            empty_box = ttk.Frame(self.timeline_content, style="Card.TFrame")
+            empty_box._custom_bg = DEEP
+            empty_box.pack(fill="x", padx=SP_4, pady=SP_4)
+
+            ttk.Label(
+                empty_box,
+                text="NO MATCHING EVENTS",
+                foreground=TEXT_SECONDARY,
+                background=DEEP,
+                font=(FONT_FALLBACK, FS_MD, "bold"),
+            ).pack(anchor="w", pady=(0, 2))
+
+            ttk.Label(
+                empty_box,
+                text=f"No forensic events match the active '{self.active_timeline_filter}' filter.",
+                foreground=TEXT_MUTED,
+                background=DEEP,
+                font=FONT_BODY,
+            ).pack(anchor="w")
+            return
+
+        total_items = len(filtered)
+        for idx, entry in enumerate(filtered):
+            self._render_timeline_row(entry, idx, total_items)
+
+    def _render_timeline_row(self, entry: Dict[str, Any], idx: int, total_items: int) -> None:
+        """Render a single event card along the vertical neon spine line."""
+        is_first = (idx == 0)
+        is_last = (idx == total_items - 1)
+        severity = int(entry.get("severity", 0))
+        cat = entry.get("category", "info")
+        node_color = self._get_category_node_color(cat, severity)
+
+        if severity >= 25:
+            accent_col = PINK
+        elif severity >= 15:
+            accent_col = PEACH
+        else:
+            accent_col = CYAN
+
+        row = tk.Frame(
+            self.timeline_content,
+            bg=ABYSS,
+            highlightthickness=1,
+            highlightbackground=STEEL,
+            bd=0,
+        )
+        row.pack(fill="x", padx=SP_2, pady=2)
+
+        # Left Neon Spine Canvas
+        spine_cv = tk.Canvas(row, width=28, bg=ABYSS, highlightthickness=0, bd=0)
+        spine_cv.pack(side="left", fill="y")
+
+        def _draw_spine(event, cv=spine_cv, fst=is_first, lst=is_last, col=node_color):
+            h = max(28, event.height)
+            cv.delete("all")
+            # Vertical spine line
+            if fst and lst:
+                pass
+            elif fst:
+                cv.create_line(14, 14, 14, h, fill=PLUM, width=2)
+            elif lst:
+                cv.create_line(14, 0, 14, 14, fill=PLUM, width=2)
+            else:
+                cv.create_line(14, 0, 14, h, fill=PLUM, width=2)
+
+            # Circular node with outer ring and inner glow
+            cv.create_oval(8, 8, 20, 20, fill=col, outline=VOID, width=1)
+            cv.create_oval(11, 11, 17, 17, fill=ICE, outline="")
+
+        spine_cv.bind("<Configure>", _draw_spine)
+
+        # Card Content Body
+        card_body = tk.Frame(row, bg=ABYSS)
+        card_body.pack(side="left", fill="both", expand=True, padx=(SP_1, SP_3), pady=4)
+
+        # Top Metadata Line: Timestamp + Badges
+        top_line = tk.Frame(card_body, bg=ABYSS)
+        top_line.pack(fill="x", pady=(0, 2))
+
+        ts_text = entry.get("timestamp") or "TIMESTAMP N/A"
+        ttk.Label(
+            top_line,
+            text=ts_text,
+            foreground=TEXT_MUTED,
+            background=ABYSS,
+            font=FONT_MONO_SM,
+        ).pack(side="left", padx=(0, SP_2))
+
+        # Source badge
+        source = entry.get("source", "evidence")
+        if source == "ai_inference":
+            src_badge = create_badge(top_line, "AI INFERENCE", PURPLE, bg=ABYSS)
+        else:
+            src_badge = create_badge(top_line, "EVIDENCE", CYAN, bg=ABYSS)
+        src_badge.pack(side="left", padx=(0, 4))
+
+        # Rule badge if present
+        rule_code = entry.get("rule_code")
+        if rule_code:
+            r_badge = create_badge(top_line, rule_code, PURPLE, bg=ABYSS)
+            r_badge.pack(side="left", padx=(0, 4))
+
+        # Severity badge if present
+        if severity > 0:
+            sev_badge = create_badge(top_line, f"+{severity} PTS", accent_col, bg=ABYSS)
+            sev_badge.pack(side="right")
+
+        # Title Line
+        title_text = entry.get("title", "Forensic Event")
+        ttk.Label(
+            card_body,
+            text=title_text,
+            foreground=TEXT_PRIMARY,
+            background=ABYSS,
+            font=(FONT_FALLBACK, FS_SM, "bold"),
+            anchor="w",
+        ).pack(fill="x", pady=(0, 2))
+
+        # Description Line
+        desc_text = entry.get("description", "")
+        if desc_text:
+            ttk.Label(
+                card_body,
+                text=desc_text,
+                foreground=TEXT_SECONDARY,
+                background=ABYSS,
+                font=FONT_SMALL,
+                anchor="w",
+                wraplength=460,
+                justify="left",
+            ).pack(fill="x")
+
+        # Raw log line preview if present
+        raw_text = entry.get("raw")
+        if raw_text:
+            raw_preview = raw_text.strip()
+            if len(raw_preview) > 100:
+                raw_preview = raw_preview[:97] + "..."
+            ttk.Label(
+                card_body,
+                text=f"RAW: {raw_preview}",
+                foreground=TEXT_MUTED,
+                background=ABYSS,
+                font=FONT_MONO_SM,
+                anchor="w",
+                wraplength=460,
+                justify="left",
+            ).pack(fill="x", pady=(2, 0))
+
+    # -------------------------------------------------------------------------
+    # Section D: Forward Chaining Reasoning Trace Terminal
     # -------------------------------------------------------------------------
 
     def _build_trace_panel(self) -> None:
         """Render the dark monospace terminal displaying the deduction proof log."""
         glass = create_glass_frame(
-            self.right_column, width=580, height=210, border_color=PURPLE, fill_color=ABYSS
+            self.right_column, width=580, height=150, border_color=PURPLE, fill_color=ABYSS
         )
         glass.pack(fill="both", expand=True)
         inner = glass.inner_frame
@@ -549,7 +950,10 @@ class AnalysisFrame(ttk.Frame):
             result = engine.evaluate(merged_facts)
             self.latest_result = result
 
-            # 4. Synchronize findings with SQLite
+            # 4. Compile Chronological Event Sequence Timeline
+            self.raw_timeline = build_timeline(merged_facts, result.get("findings", []))
+
+            # 5. Synchronize findings with SQLite
             if target_case_id is not None:
                 clear_findings_for_case(target_case_id)
                 for f in result["findings"]:
@@ -560,7 +964,7 @@ class AnalysisFrame(ttk.Frame):
                         severity=f["severity"],
                     )
 
-            # 5. Update UI View
+            # 6. Update UI View
             self._render_analysis_state(merged_facts, result)
 
         finally:
@@ -654,6 +1058,9 @@ class AnalysisFrame(ttk.Frame):
             "summary",
         )
         self.txt_trace.config(state="disabled")
+
+        # 5. Update Section C Chronological Timeline Sequence
+        self._render_timeline_entries()
 
     def _render_finding_card(self, finding: Dict[str, Any]) -> None:
         """Render a single derived finding card with proof breakdown."""
@@ -792,6 +1199,10 @@ class AnalysisFrame(ttk.Frame):
         )
         self.txt_trace.config(state="disabled")
 
+        # Reset timeline
+        self.raw_timeline = []
+        self._render_timeline_entries()
+
     def refresh_data(self) -> None:
         """Refresh active case header context and reload saved findings if available."""
         # 1. Update Case Context Badge
@@ -831,6 +1242,7 @@ class AnalysisFrame(ttk.Frame):
                 for child in self.findings_content.winfo_children():
                     child.destroy()
 
+                parsed_findings_for_timeline = []
                 for f in db_findings:
                     parsed_item = {
                         "rule_code": f["rule_code"],
@@ -840,6 +1252,10 @@ class AnalysisFrame(ttk.Frame):
                         "explanation": f"Persisted rule finding retrieved from forensic database (Rule {f['rule_code']}).",
                     }
                     self._render_finding_card(parsed_item)
+                    parsed_findings_for_timeline.append(parsed_item)
+
+                self.raw_timeline = build_timeline({"timeline_events": []}, parsed_findings_for_timeline)
+                self._render_timeline_entries()
                 return
 
         if not self.latest_result:
