@@ -67,16 +67,34 @@ from database import (
     get_all_cases,
 )
 
+from analyzers.dispatcher import detect_evidence_type
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOADS_DIR = os.path.join(PROJECT_ROOT, "uploads")
 
 
 def calculate_sha256(file_path: str) -> str:
     """
-    Calculate the SHA-256 hexadecimal digest of a file in 64KB chunks
-    for memory efficiency and forensic chain-of-custody verification.
+    Calculate the SHA-256 hexadecimal digest of a file (in 64KB chunks)
+    or directory tree (composite digest over sorted filenames and contents)
+    for forensic chain-of-custody verification.
     """
     hasher = hashlib.sha256()
+    if os.path.isdir(file_path):
+        for root, dirs, files in os.walk(file_path):
+            dirs.sort()
+            for fname in sorted(files):
+                full_p = os.path.join(root, fname)
+                rel_p = os.path.relpath(full_p, file_path).replace("\\", "/")
+                hasher.update(rel_p.encode("utf-8"))
+                try:
+                    with open(full_p, "rb") as f:
+                        while chunk := f.read(65536):
+                            hasher.update(chunk)
+                except Exception:
+                    pass
+        return hasher.hexdigest().lower()
+
     with open(file_path, "rb") as f:
         while chunk := f.read(65536):
             hasher.update(chunk)
@@ -399,14 +417,57 @@ class CaseDetailFrame(ttk.Frame):
         self.entry_path.config(state="readonly")
         self.entry_path.pack(side="left", fill="x", expand=True, ipady=3, padx=(0, SP_2))
 
-        btn_browse = create_neon_button(
+        btn_browse_file = create_neon_button(
             picker_box,
-            text="[BROWSE]",
+            text="[FILE]",
             command=self._handle_browse_file,
             variant="secondary",
             bg=DEEP,
         )
-        btn_browse.pack(side="right")
+        btn_browse_file.pack(side="right", padx=(2, 0))
+
+        btn_browse_folder = create_neon_button(
+            picker_box,
+            text="[FOLDER]",
+            command=self._handle_browse_folder,
+            variant="secondary",
+            bg=DEEP,
+        )
+        btn_browse_folder.pack(side="right")
+
+        # Quick Load Sample Evidence Row
+        sample_row = ttk.Frame(inner, style="Card.TFrame")
+        sample_row._custom_bg = DEEP
+        sample_row.pack(fill="x", padx=SP_4, pady=(0, SP_2))
+
+        ttk.Label(
+            sample_row,
+            text="TEST SAMPLE EVIDENCE:",
+            foreground=TEXT_MUTED,
+            background=DEEP,
+            font=(FONT_FALLBACK, FS_XS, "bold"),
+        ).pack(side="left", padx=(0, SP_1))
+
+        for s_lbl, s_path, s_cat, s_col in [
+            ("LOG", "system.log", "log", CYAN),
+            ("FOLDER", "evidence_folder", "file", PEACH),
+            ("BROWSER", "browser_history.csv", "browser", PURPLE),
+            ("EMAIL", "emails.csv", "email", PINK),
+        ]:
+            btn_s = tk.Button(
+                sample_row,
+                text=f"[{s_lbl}]",
+                font=(FONT_FALLBACK, FS_XS, "bold"),
+                bd=1,
+                relief="solid",
+                bg=ABYSS,
+                fg=s_col,
+                highlightthickness=1,
+                highlightbackground=STEEL,
+                cursor="hand2",
+                command=lambda r=s_path, c=s_cat: self._load_sample_evidence(r, c),
+            )
+            btn_s.pack(side="left", padx=2)
 
         # Evidence Type Selector
         ttk.Label(
@@ -512,17 +573,11 @@ class CaseDetailFrame(ttk.Frame):
                     highlightbackground=PLUM,
                 )
 
-    def _detect_evidence_type(self, filename: str) -> str:
-        """Infer evidence category from filename extension."""
-        ext = os.path.splitext(filename)[1].lower()
-        if ext in (".log", ".evt", ".evtx", ".txt"):
-            return "log"
-        elif ext in (".csv", ".sqlite", ".sqlite3", ".db", ".history"):
-            return "browser"
-        elif ext in (".eml", ".msg", ".mbox", ".pst", ".ost"):
-            return "email"
-        else:
+    def _detect_evidence_type(self, path_or_name: str) -> str:
+        """Infer evidence category using deterministic inspector."""
+        if os.path.isdir(path_or_name):
             return "file"
+        return detect_evidence_type(path_or_name)
 
     def _handle_browse_file(self) -> None:
         """Open system file picker and populate selection."""
@@ -545,11 +600,44 @@ class CaseDetailFrame(ttk.Frame):
             self.entry_path.config(state="readonly")
 
             # Auto-detect category
-            detected = self._detect_evidence_type(os.path.basename(chosen))
+            detected = self._detect_evidence_type(chosen)
             self._select_evidence_type(detected)
 
             self.lbl_import_status.config(
-                text=f"SELECTED: {os.path.basename(chosen)}", foreground=CYAN
+                text=f"SELECTED FILE: {os.path.basename(chosen)}", foreground=CYAN
+            )
+            self.lbl_hash_display.config(text="SHA-256: [PENDING VERIFICATION]", foreground=TEXT_MUTED)
+
+    def _handle_browse_folder(self) -> None:
+        """Open system folder picker and populate selection."""
+        chosen = filedialog.askdirectory(title="Select Forensic Evidence Folder")
+        if chosen:
+            self.selected_file_path = chosen
+            self.entry_path.config(state="normal")
+            self.entry_path.delete(0, tk.END)
+            self.entry_path.insert(0, chosen)
+            self.entry_path.config(state="readonly")
+
+            self._select_evidence_type("file")
+            self.lbl_import_status.config(
+                text=f"SELECTED FOLDER: {os.path.basename(chosen)}", foreground=CYAN
+            )
+            self.lbl_hash_display.config(text="SHA-256: [PENDING VERIFICATION]", foreground=TEXT_MUTED)
+
+    def _load_sample_evidence(self, rel_path: str, cat: str) -> None:
+        """Quickly load one of the 4 built-in test evidence artifacts into the form."""
+        full_p = os.path.join(PROJECT_ROOT, "sample_evidence", rel_path)
+        if os.path.exists(full_p):
+            self.selected_file_path = full_p
+            self.entry_path.config(state="normal")
+            self.entry_path.delete(0, tk.END)
+            self.entry_path.insert(0, full_p)
+            self.entry_path.config(state="readonly")
+
+            self._select_evidence_type(cat)
+            kind = "FOLDER" if os.path.isdir(full_p) else "FILE"
+            self.lbl_import_status.config(
+                text=f"LOADED TEST {kind}: {os.path.basename(full_p)}", foreground=CYAN
             )
             self.lbl_hash_display.config(text="SHA-256: [PENDING VERIFICATION]", foreground=TEXT_MUTED)
 
@@ -782,7 +870,12 @@ class CaseDetailFrame(ttk.Frame):
             dest_path = os.path.join(UPLOADS_DIR, dest_filename)
 
             if os.path.abspath(src_path) != os.path.abspath(dest_path):
-                shutil.copy2(src_path, dest_path)
+                if os.path.isdir(src_path):
+                    if os.path.exists(dest_path):
+                        shutil.rmtree(dest_path)
+                    shutil.copytree(src_path, dest_path)
+                else:
+                    shutil.copy2(src_path, dest_path)
 
             evidence_id = add_evidence(
                 case_id=self.case_id,

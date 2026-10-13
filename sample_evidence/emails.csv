@@ -1,0 +1,5 @@
+date,sender,recipient,subject,body,attachments
+2025-10-15 09:00:00,boss@company.com,salman@company.com,Quarterly Review,Please find attached the Q3 report.,q3_report.pdf
+2025-10-15 10:15:00,security-alert@update-paypa1.com,salman@company.com,URGENT ACTION REQUIRED: Account Suspended,Verify your credentials immediately at http://paypa1-security-verify.com/login,
+2025-10-15 11:30:00,unknown-external@free-invoice-drop.xyz,salman@company.com,Invoice OVERDUE Payment Required,Please execute the attached invoice software to verify invoice details.,invoice_october.exe
+2025-10-15 12:45:00,hacker@evil-domain.org,salman@company.com,Wire Transfer Order Confirmation,Enable macros to view encrypted wire document.,wire_transfer.xlsm;payload_installer.ps1

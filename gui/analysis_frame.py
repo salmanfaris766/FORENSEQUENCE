@@ -60,7 +60,8 @@ from gui.theme import (
     risk_label,
 )
 
-from analyzers.log_analyzer import parse_log_file
+from analyzers import parse_evidence_item, merge_facts_list
+from analyzers.dispatcher import detect_evidence_type
 from ai.rule_engine import ForwardChainingEngine
 from database import (
     get_case_by_id,
@@ -235,7 +236,7 @@ class AnalysisFrame(ttk.Frame):
     # -------------------------------------------------------------------------
 
     def _build_facts_panel(self) -> None:
-        """Render the evidence facts metric panel."""
+        """Render the multi-source evidence facts metric panel."""
         glass = create_glass_frame(
             self.left_column, width=380, height=530, border_color=CYAN, fill_color=DEEP
         )
@@ -248,7 +249,7 @@ class AnalysisFrame(ttk.Frame):
 
         ttk.Label(
             inner,
-            text="Deterministic signals harvested across case evidence artifacts.",
+            text="Deterministic signals harvested across multi-source evidence artifacts.",
             foreground=TEXT_MUTED,
             background=DEEP,
             font=FONT_SMALL,
@@ -258,24 +259,100 @@ class AnalysisFrame(ttk.Frame):
 
         create_divider(inner, color=PLUM).pack(fill="x", padx=SP_4, pady=(0, SP_2))
 
-        # Facts Display Box
-        self.facts_box = ttk.Frame(inner, style="Card.TFrame")
-        self.facts_box._custom_bg = DEEP
-        self.facts_box.pack(fill="both", expand=True, padx=SP_4, pady=(0, SP_3))
+        # Scrollable container for facts
+        scroll_wrapper = ttk.Frame(inner, style="Card.TFrame")
+        scroll_wrapper._custom_bg = DEEP
+        scroll_wrapper.pack(fill="both", expand=True, padx=SP_2, pady=(0, SP_3))
 
+        self.facts_canvas = tk.Canvas(scroll_wrapper, bg=DEEP, highlightthickness=0, bd=0)
+        self.facts_scrollbar = ttk.Scrollbar(
+            scroll_wrapper, orient="vertical", command=self.facts_canvas.yview
+        )
+        self.facts_canvas.configure(yscrollcommand=self.facts_scrollbar.set)
+
+        self.facts_content = ttk.Frame(self.facts_canvas, style="Card.TFrame")
+        self.facts_content._custom_bg = DEEP
+        self.facts_window_id = self.facts_canvas.create_window(
+            (0, 0), window=self.facts_content, anchor="nw"
+        )
+
+        def _on_facts_content_configure(event):
+            self.facts_canvas.configure(scrollregion=self.facts_canvas.bbox("all"))
+
+        def _on_facts_canvas_configure(event):
+            self.facts_canvas.itemconfig(self.facts_window_id, width=event.width)
+
+        self.facts_content.bind("<Configure>", _on_facts_content_configure)
+        self.facts_canvas.bind("<Configure>", _on_facts_canvas_configure)
+
+        def _on_facts_mousewheel(event):
+            try:
+                if self.facts_canvas.winfo_exists():
+                    self.facts_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            except Exception:
+                pass
+
+        self.facts_canvas.bind("<Enter>", lambda _: self.facts_canvas.bind_all("<MouseWheel>", _on_facts_mousewheel))
+        self.facts_canvas.bind("<Leave>", lambda _: self.facts_canvas.unbind_all("<MouseWheel>"))
+
+        self.facts_canvas.pack(side="left", fill="both", expand=True)
+        self.facts_scrollbar.pack(side="right", fill="y")
+
+        # 1. Multi-Source Ingestion Badges Row
+        src_row = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+        src_row.pack(fill="x", padx=SP_2, pady=(0, SP_2))
+
+        ttk.Label(
+            src_row,
+            text="EVIDENCE SOURCES INGESTED",
+            foreground=TEXT_SECONDARY,
+            background=ABYSS,
+            font=(FONT_FALLBACK, FS_XS, "bold"),
+        ).pack(anchor="w", padx=SP_3, pady=(4, 2))
+
+        badges_flow = tk.Frame(src_row, bg=ABYSS)
+        badges_flow.pack(fill="x", padx=SP_2, pady=(0, 4))
+
+        self.badge_src_log_container = tk.Frame(badges_flow, bg=ABYSS)
+        self.badge_src_log_container.pack(side="left", padx=2, pady=1)
+        self.badge_src_log = create_badge(self.badge_src_log_container, "LOG: 0", CYAN, bg=ABYSS)
+        self.badge_src_log.pack()
+
+        self.badge_src_file_container = tk.Frame(badges_flow, bg=ABYSS)
+        self.badge_src_file_container.pack(side="left", padx=2, pady=1)
+        self.badge_src_file = create_badge(self.badge_src_file_container, "FILE: 0", PEACH, bg=ABYSS)
+        self.badge_src_file.pack()
+
+        self.badge_src_browser_container = tk.Frame(badges_flow, bg=ABYSS)
+        self.badge_src_browser_container.pack(side="left", padx=2, pady=1)
+        self.badge_src_browser = create_badge(self.badge_src_browser_container, "BROWSER: 0", PURPLE, bg=ABYSS)
+        self.badge_src_browser.pack()
+
+        self.badge_src_email_container = tk.Frame(badges_flow, bg=ABYSS)
+        self.badge_src_email_container.pack(side="left", padx=2, pady=1)
+        self.badge_src_email = create_badge(self.badge_src_email_container, "EMAIL: 0", PINK, bg=ABYSS)
+        self.badge_src_email.pack()
+
+        # 2. Metric spec cards
         self.fact_metric_labels = {}
         metrics_spec = [
-            ("total_lines", "TOTAL LINES PARSED", TEXT_PRIMARY),
             ("failed_logins", "FAILED AUTH ATTEMPTS", CYAN),
             ("successful_logins", "SUCCESSFUL LOGINS", ICE),
             ("usb_connections", "USB MEDIA ATTACHMENTS", PEACH),
             ("executable_events", "SUSPICIOUS EXECUTIONS", PINK),
             ("deleted_files", "FILE DELETION EVENTS", PINK),
+            ("suspicious_domains", "SUSPICIOUS DOMAINS / BEACONS", MAGENTA),
+            ("hidden_files", "HIDDEN FORENSIC FILES", PEACH),
+            ("autorun_entries", "AUTORUN PERSISTENCE ARTIFACTS", PURPLE),
+            ("unknown_sender_count", "UNKNOWN SENDER EMAILS", PINK),
+            ("executable_attachment_count", "EXECUTABLE ATTACHMENTS", PINK),
+            ("urgent_subjects_count", "URGENT / COERCIVE EMAILS", PEACH),
+            ("suspicious_searches_count", "SUSPICIOUS SEARCH QUERIES", CYAN),
         ]
 
         for key, title, col in metrics_spec:
-            row = tk.Frame(self.facts_box, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
-            row.pack(fill="x", pady=2)
+            row = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+            row.pack(fill="x", padx=SP_2, pady=2)
 
             ttk.Label(
                 row,
@@ -295,10 +372,10 @@ class AnalysisFrame(ttk.Frame):
             lbl_val.pack(side="right", padx=SP_3, pady=4)
             self.fact_metric_labels[key] = lbl_val
 
-        # Monospace Lists for IPs and Users
-        chip_box = tk.Frame(self.facts_box, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
-        chip_box.pack(fill="x", pady=(SP_2, 2))
-
+        # Monospace Detail Blocks:
+        # IPs
+        chip_box = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+        chip_box.pack(fill="x", padx=SP_2, pady=(SP_2, 2))
         ttk.Label(
             chip_box,
             text="FLAGGED IP ADDRESSES",
@@ -306,7 +383,6 @@ class AnalysisFrame(ttk.Frame):
             background=ABYSS,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(anchor="w", padx=SP_3, pady=(4, 1))
-
         self.lbl_ips = ttk.Label(
             chip_box,
             text="None detected",
@@ -317,9 +393,9 @@ class AnalysisFrame(ttk.Frame):
         )
         self.lbl_ips.pack(anchor="w", padx=SP_3, pady=(0, 4))
 
-        user_box = tk.Frame(self.facts_box, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
-        user_box.pack(fill="x", pady=2)
-
+        # Users
+        user_box = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+        user_box.pack(fill="x", padx=SP_2, pady=2)
         ttk.Label(
             user_box,
             text="FLAGGED USER ACCOUNTS",
@@ -327,7 +403,6 @@ class AnalysisFrame(ttk.Frame):
             background=ABYSS,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(anchor="w", padx=SP_3, pady=(4, 1))
-
         self.lbl_users = ttk.Label(
             user_box,
             text="None detected",
@@ -337,6 +412,46 @@ class AnalysisFrame(ttk.Frame):
             wraplength=330,
         )
         self.lbl_users.pack(anchor="w", padx=SP_3, pady=(0, 4))
+
+        # Phishing / Flagged URLs
+        url_box = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+        url_box.pack(fill="x", padx=SP_2, pady=2)
+        ttk.Label(
+            url_box,
+            text="FLAGGED DOMAINS & EXFIL URLS",
+            foreground=TEXT_SECONDARY,
+            background=ABYSS,
+            font=(FONT_FALLBACK, FS_XS, "bold"),
+        ).pack(anchor="w", padx=SP_3, pady=(4, 1))
+        self.lbl_urls = ttk.Label(
+            url_box,
+            text="None detected",
+            foreground=MAGENTA,
+            background=ABYSS,
+            font=FONT_MONO_SM,
+            wraplength=330,
+        )
+        self.lbl_urls.pack(anchor="w", padx=SP_3, pady=(0, 4))
+
+        # Flagged Emails
+        mail_box = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+        mail_box.pack(fill="x", padx=SP_2, pady=(2, SP_3))
+        ttk.Label(
+            mail_box,
+            text="MALICIOUS EMAIL SENDER VECTORS",
+            foreground=TEXT_SECONDARY,
+            background=ABYSS,
+            font=(FONT_FALLBACK, FS_XS, "bold"),
+        ).pack(anchor="w", padx=SP_3, pady=(4, 1))
+        self.lbl_emails = ttk.Label(
+            mail_box,
+            text="None detected",
+            foreground=PINK,
+            background=ABYSS,
+            font=FONT_MONO_SM,
+            wraplength=330,
+        )
+        self.lbl_emails.pack(anchor="w", padx=SP_3, pady=(0, 4))
 
     # -------------------------------------------------------------------------
     # Section B: Derived Forensic Findings
@@ -530,6 +645,9 @@ class AnalysisFrame(ttk.Frame):
             ("EXEC", "EXEC"),
             ("USB", "USB"),
             ("DELETE", "DELETE"),
+            ("WEB", "WEB"),
+            ("EMAIL", "EMAIL"),
+            ("FILES", "FILES"),
             ("AI FINDINGS", "AI FINDINGS"),
         ]
 
@@ -597,6 +715,14 @@ class AnalysisFrame(ttk.Frame):
             return PURPLE
         elif cat == "deleted_file":
             return MAGENTA
+        elif cat == "browser_navigation":
+            return CYAN
+        elif cat == "malicious_email":
+            return PINK
+        elif cat in ("hidden_file", "autorun_entry", "suspicious_extension"):
+            return PEACH
+        elif cat == "large_file":
+            return PURPLE
         elif cat == "finding":
             if severity >= 25:
                 return PINK
@@ -640,6 +766,9 @@ class AnalysisFrame(ttk.Frame):
             "EXEC": ["executable_event"],
             "USB": ["usb_connection"],
             "DELETE": ["deleted_file"],
+            "WEB": ["browser_navigation"],
+            "EMAIL": ["malicious_email"],
+            "FILES": ["hidden_file", "autorun_entry", "large_file", "suspicious_extension"],
             "AI FINDINGS": ["finding"],
         }
         filter_cats = cat_map.get(self.active_timeline_filter, None)
@@ -867,7 +996,7 @@ class AnalysisFrame(ttk.Frame):
 
     def run_analysis(self) -> None:
         """
-        Dynamically execute log analysis, forward chaining reasoning,
+        Dynamically execute multi-source evidence extraction, forward chaining reasoning,
         and database synchronization.
         """
         if self._is_analyzing:
@@ -888,72 +1017,43 @@ class AnalysisFrame(ttk.Frame):
             if target_case_id is not None:
                 evidence_items = get_evidence_for_case(target_case_id)
 
-            # 2. Extract facts from evidence artifacts
-            merged_facts = {
-                "evidence_type": "log",
-                "total_lines": 0,
-                "failed_logins": 0,
-                "successful_logins": 0,
-                "usb_connections": 0,
-                "executable_events": 0,
-                "deleted_files": 0,
-                "suspicious_domains": 0,
-                "unknown_sender": False,
-                "executable_attachment": False,
-                "ip_addresses": [],
-                "users_flagged": [],
-                "timeline_events": [],
-            }
-
-            all_ips = set()
-            all_users = set()
-            evidence_found = False
+            # 2. Extract facts from evidence artifacts via Unified Evidence Dispatcher
+            facts_list: List[Dict[str, Any]] = []
 
             for item in evidence_items:
                 f_path = item.get("file_path", "")
+                ev_type = item.get("evidence_type", "")
                 if f_path and os.path.exists(f_path):
-                    try:
-                        facts = parse_log_file(f_path)
-                        evidence_found = True
-                        merged_facts["total_lines"] += facts.get("total_lines", 0)
-                        merged_facts["failed_logins"] += facts.get("failed_logins", 0)
-                        merged_facts["successful_logins"] += facts.get("successful_logins", 0)
-                        merged_facts["usb_connections"] += facts.get("usb_connections", 0)
-                        merged_facts["executable_events"] += facts.get("executable_events", 0)
-                        merged_facts["deleted_files"] += facts.get("deleted_files", 0)
-                        merged_facts["suspicious_domains"] += facts.get("suspicious_domains", 0)
-                        for ip in facts.get("ip_addresses", []):
-                            all_ips.add(ip)
-                        for u in facts.get("users_flagged", []):
-                            all_users.add(u)
-                        merged_facts["timeline_events"].extend(facts.get("timeline_events", []))
-                    except Exception:
-                        pass
+                    parsed = parse_evidence_item(ev_type, f_path)
+                    facts_list.append(parsed)
 
-            # Fallback to sample_evidence/system.log if case has no uploaded logs yet
-            if not evidence_found:
-                sample_log = os.path.join(PROJECT_ROOT, "sample_evidence", "system.log")
-                if os.path.exists(sample_log):
-                    facts = parse_log_file(sample_log)
-                    merged_facts = facts
-                    for ip in facts.get("ip_addresses", []):
-                        all_ips.add(ip)
-                    for u in facts.get("users_flagged", []):
-                        all_users.add(u)
+            # Fallback to all 4 sample evidence items if case has no uploaded evidence
+            if not facts_list:
+                sample_dir = os.path.join(PROJECT_ROOT, "sample_evidence")
+                sample_defs = [
+                    ("log", os.path.join(sample_dir, "system.log")),
+                    ("file", os.path.join(sample_dir, "evidence_folder")),
+                    ("browser", os.path.join(sample_dir, "browser_history.csv")),
+                    ("email", os.path.join(sample_dir, "emails.csv")),
+                ]
+                for s_type, s_path in sample_defs:
+                    if os.path.exists(s_path):
+                        parsed = parse_evidence_item(s_type, s_path)
+                        facts_list.append(parsed)
 
-            merged_facts["ip_addresses"] = sorted(list(all_ips))
-            merged_facts["users_flagged"] = sorted(list(all_users))
-            self.latest_facts = merged_facts
+            # 3. Merge facts into single unified facts dictionary
+            unified_facts = merge_facts_list(facts_list)
+            self.latest_facts = unified_facts
 
-            # 3. Execute Forward Chaining Inference Engine
+            # 4. Execute Forward Chaining Inference Engine
             engine = ForwardChainingEngine()
-            result = engine.evaluate(merged_facts)
+            result = engine.evaluate(unified_facts)
             self.latest_result = result
 
-            # 4. Compile Chronological Event Sequence Timeline
-            self.raw_timeline = build_timeline(merged_facts, result.get("findings", []))
+            # 5. Compile Chronological Event Sequence Timeline
+            self.raw_timeline = build_timeline(unified_facts, result.get("findings", []))
 
-            # 5. Synchronize findings with SQLite
+            # 6. Synchronize findings with SQLite
             if target_case_id is not None:
                 clear_findings_for_case(target_case_id)
                 for f in result["findings"]:
@@ -964,8 +1064,8 @@ class AnalysisFrame(ttk.Frame):
                         severity=f["severity"],
                     )
 
-            # 6. Update UI View
-            self._render_analysis_state(merged_facts, result)
+            # 7. Update UI View
+            self._render_analysis_state(unified_facts, result)
 
         finally:
             self._is_analyzing = False
@@ -988,7 +1088,25 @@ class AnalysisFrame(ttk.Frame):
         # Animate the compact header gauge
         self.header_gauge.set_score(risk_score, level=risk_lvl, animate=True)
 
-        # 2. Update Section A Metrics
+        # 2. Update Source Breakdown Badges
+        if hasattr(self, "badge_src_log_container"):
+            for child in self.badge_src_log_container.winfo_children():
+                child.destroy()
+            create_badge(self.badge_src_log_container, f"LOG: {facts.get('total_lines', 0)}", CYAN, bg=ABYSS).pack()
+
+            for child in self.badge_src_file_container.winfo_children():
+                child.destroy()
+            create_badge(self.badge_src_file_container, f"FILE: {facts.get('total_files', 0)}", PEACH, bg=ABYSS).pack()
+
+            for child in self.badge_src_browser_container.winfo_children():
+                child.destroy()
+            create_badge(self.badge_src_browser_container, f"BROWSER: {facts.get('total_visits', 0)}", PURPLE, bg=ABYSS).pack()
+
+            for child in self.badge_src_email_container.winfo_children():
+                child.destroy()
+            create_badge(self.badge_src_email_container, f"EMAIL: {facts.get('total_emails', 0)}", PINK, bg=ABYSS).pack()
+
+        # 3. Update Metrics Counters
         for key, lbl in self.fact_metric_labels.items():
             val = facts.get(key, 0)
             lbl.config(text=str(val))
@@ -998,6 +1116,24 @@ class AnalysisFrame(ttk.Frame):
 
         users = facts.get("users_flagged", [])
         self.lbl_users.config(text=", ".join(users) if users else "None detected")
+
+        flagged_urls = facts.get("flagged_urls", [])
+        if flagged_urls:
+            url_summaries = [f"{u.get('url', '')[:45]}..." if len(u.get('url', '')) > 45 else u.get('url', '') for u in flagged_urls[:3]]
+            if len(flagged_urls) > 3:
+                url_summaries.append(f"(+{len(flagged_urls) - 3} more)")
+            self.lbl_urls.config(text="\n".join(url_summaries))
+        else:
+            self.lbl_urls.config(text="None detected")
+
+        flagged_emails = facts.get("flagged_emails", [])
+        if flagged_emails:
+            email_summaries = [f"{e.get('sender', '')} -> {e.get('subject', '')[:30]}" for e in flagged_emails[:3]]
+            if len(flagged_emails) > 3:
+                email_summaries.append(f"(+{len(flagged_emails) - 3} more)")
+            self.lbl_emails.config(text="\n".join(email_summaries))
+        else:
+            self.lbl_emails.config(text="None detected")
 
         # 3. Update Section B Findings List
         findings = result.get("findings", [])

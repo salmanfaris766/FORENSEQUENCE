@@ -37,6 +37,12 @@ _VALID_CATEGORIES = {
     "usb_connection",
     "executable_event",
     "deleted_file",
+    "browser_navigation",
+    "malicious_email",
+    "hidden_file",
+    "autorun_entry",
+    "large_file",
+    "suspicious_extension",
     "finding",
     "info",
 }
@@ -46,12 +52,18 @@ _EPOCH_FALLBACK = "9999-12-31 23:59:59"
 
 # Human-readable titles for raw evidence categories
 _CATEGORY_TITLES: Dict[str, str] = {
-    "failed_login":      "Failed Authentication Attempt",
-    "successful_login":  "Successful Login Session",
-    "usb_connection":    "USB Storage Device Connected",
-    "executable_event":  "Suspicious Process Execution",
-    "deleted_file":      "File Deletion / Anti-Forensics",
-    "info":              "Informational Event",
+    "failed_login":         "Failed Authentication Attempt",
+    "successful_login":     "Successful Login Session",
+    "usb_connection":       "USB Storage Device Connected",
+    "executable_event":     "Suspicious Process Execution",
+    "deleted_file":         "File Deletion / Anti-Forensics",
+    "browser_navigation":   "Browser Navigation / Web Access",
+    "malicious_email":      "Flagged / Malicious Email Event",
+    "hidden_file":          "Hidden Forensic File Artifact",
+    "autorun_entry":        "Persistence / Autorun Entry",
+    "large_file":           "Anomalous Large File Artifact",
+    "suspicious_extension": "Suspicious File Extension",
+    "info":                 "Informational Event",
 }
 
 
@@ -94,7 +106,7 @@ def _normalize_evidence_event(raw_event: Dict[str, Any]) -> Dict[str, Any]:
     if cat not in _VALID_CATEGORIES:
         cat = "info"
 
-    title = _CATEGORY_TITLES.get(cat, "System Event")
+    title = raw_event.get("title") or _CATEGORY_TITLES.get(cat, "Forensic Event")
     description = raw_event.get("description", "")
     # Prefer the richer description if available
     if not description:
@@ -105,9 +117,9 @@ def _normalize_evidence_event(raw_event: Dict[str, Any]) -> Dict[str, Any]:
         "category":    cat,
         "title":       title,
         "description": description,
-        "severity":    0,
-        "source":      "evidence",
-        "rule_code":   None,
+        "severity":    int(raw_event.get("severity", 0)),
+        "source":      raw_event.get("source", "evidence"),
+        "rule_code":   raw_event.get("rule_code", None),
         "raw":         raw_event.get("raw_line", None),
     }
 

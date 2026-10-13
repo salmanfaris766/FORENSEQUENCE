@@ -229,10 +229,10 @@ class LiveMonitorFrame(ttk.Frame):
         )
         self.entry_target_path.pack(side="left", fill="x", expand=True, padx=(0, SP_2))
 
-        # Browse Button
+        # Browse File & Folder Buttons
         self.btn_browse = tk.Label(
             file_row,
-            text="[BROWSE]",
+            text="[FILE]",
             font=(FONT_FALLBACK, FS_XS, "bold"),
             bg=ABYSS,
             fg=CYAN,
@@ -244,10 +244,29 @@ class LiveMonitorFrame(ttk.Frame):
             highlightthickness=1,
             highlightbackground=STEEL,
         )
-        self.btn_browse.pack(side="left")
+        self.btn_browse.pack(side="left", padx=(0, 2))
         self.btn_browse.bind("<Enter>", lambda _: self.btn_browse.configure(fg=ICE, bg=DEEP))
         self.btn_browse.bind("<Leave>", lambda _: self.btn_browse.configure(fg=CYAN, bg=ABYSS))
         self.btn_browse.bind("<Button-1>", lambda _: self._browse_target_file())
+
+        self.btn_browse_folder = tk.Label(
+            file_row,
+            text="[FOLDER]",
+            font=(FONT_FALLBACK, FS_XS, "bold"),
+            bg=ABYSS,
+            fg=PEACH,
+            cursor="hand2",
+            padx=6,
+            pady=2,
+            bd=1,
+            relief="solid",
+            highlightthickness=1,
+            highlightbackground=STEEL,
+        )
+        self.btn_browse_folder.pack(side="left")
+        self.btn_browse_folder.bind("<Enter>", lambda _: self.btn_browse_folder.configure(fg=ICE, bg=DEEP))
+        self.btn_browse_folder.bind("<Leave>", lambda _: self.btn_browse_folder.configure(fg=PEACH, bg=ABYSS))
+        self.btn_browse_folder.bind("<Button-1>", lambda _: self._browse_target_folder())
 
         # Right Action Buttons: [START LIVE MONITORING] and [STOP WATCHER]
         right_ctrl = ttk.Frame(inner_ctrl, style="Card.TFrame")
@@ -549,6 +568,16 @@ class LiveMonitorFrame(ttk.Frame):
             self.entry_target_path.delete(0, tk.END)
             self.entry_target_path.insert(0, os.path.normpath(chosen))
 
+    def _browse_target_folder(self) -> None:
+        """Open folder dialog to select target directory to monitor."""
+        chosen = filedialog.askdirectory(
+            title="Select Evidence Folder to Monitor",
+            initialdir=os.path.join(PROJECT_ROOT, "sample_evidence"),
+        )
+        if chosen:
+            self.entry_target_path.delete(0, tk.END)
+            self.entry_target_path.insert(0, os.path.normpath(chosen))
+
     def _clear_terminal(self) -> None:
         """Wipe terminal buffer."""
         self.txt_stream.delete("1.0", tk.END)
@@ -593,10 +622,10 @@ class LiveMonitorFrame(ttk.Frame):
     # -------------------------------------------------------------------------
 
     def start_monitoring(self) -> None:
-        """Launch background watchdog observer on specified file."""
+        """Launch background watchdog observer on specified file or directory."""
         target_path = self.entry_target_path.get().strip()
         if not target_path or not os.path.exists(target_path):
-            self._append_system_log(f"Cannot start watcher: file '{target_path}' does not exist.")
+            self._append_system_log(f"Cannot start watcher: target '{target_path}' does not exist.")
             return
 
         if self.monitor_manager.is_monitoring():
@@ -605,7 +634,8 @@ class LiveMonitorFrame(ttk.Frame):
         started = self.monitor_manager.start_monitoring(target_path)
         if started:
             self._update_badge_state(True)
-            self._append_system_log(f"Started real-time watchdog monitor on: {target_path}")
+            mode_desc = "folder" if os.path.isdir(target_path) else "file"
+            self._append_system_log(f"Started real-time watchdog {mode_desc} monitor on: {target_path}")
 
             if self.shell and hasattr(self.shell, "set_live_state"):
                 self.shell.set_live_state(True, target_path)
@@ -666,9 +696,15 @@ class LiveMonitorFrame(ttk.Frame):
             self.after(200, self.poll_queue)
 
     def _handle_event_payload(self, payload: Dict[str, Any]) -> None:
-        """Process incoming log append payload on the main Tkinter thread."""
+        """Process incoming log append or folder event payload on the main Tkinter thread."""
+        p_type = payload.get("type", "log_append")
         raw_lines: List[str] = payload.get("raw_lines", [])
         inc_facts: Dict[str, Any] = payload.get("incremental_facts", {})
+
+        if p_type == "folder_file_created":
+            fname = payload.get("filename", "")
+            dtype = str(payload.get("detected_type", "")).upper()
+            self._append_system_log(f"New artifact detected in monitored folder: {fname} [{dtype}]")
 
         # 1. Stream raw lines into terminal with syntax highlighting
         for line in raw_lines:
@@ -676,17 +712,24 @@ class LiveMonitorFrame(ttk.Frame):
 
         # 2. Update line count
         self.lbl_stream_count.config(
-            text=f"{self.running_facts['total_lines'] + len(raw_lines)} LINES STREAMED"
+            text=f"{self.running_facts['total_lines'] + len(raw_lines)} EVENTS STREAMED"
         )
 
         # 3. Merge incremental facts into running total facts
         for key in (
             "failed_logins", "successful_logins", "usb_connections",
-            "executable_events", "deleted_files",
+            "executable_events", "deleted_files", "suspicious_domains",
+            "hidden_files", "autorun_entries", "unknown_sender_count",
+            "executable_attachment_count", "urgent_subjects_count",
+            "download_events",
         ):
-            inc_val = inc_facts.get(key, 0)
-            self.running_facts[key] += inc_val
-            self.delta_increments[key] = self.delta_increments.get(key, 0) + inc_val
+            inc_val = int(inc_facts.get(key, 0) or 0)
+            if inc_val:
+                self.running_facts[key] = self.running_facts.get(key, 0) + inc_val
+                self.delta_increments[key] = self.delta_increments.get(key, 0) + inc_val
+
+        self.running_facts["unknown_sender"] = self.running_facts.get("unknown_sender_count", 0) > 0
+        self.running_facts["executable_attachment"] = self.running_facts.get("executable_attachment_count", 0) > 0
 
         self.running_facts["total_lines"] += len(raw_lines)
         self.delta_increments["total_lines"] = (
@@ -694,11 +737,11 @@ class LiveMonitorFrame(ttk.Frame):
         )
 
         for ip in inc_facts.get("ip_addresses", []):
-            if ip not in self.running_facts["ip_addresses"]:
+            if ip and ip not in self.running_facts["ip_addresses"]:
                 self.running_facts["ip_addresses"].append(ip)
 
         for u in inc_facts.get("users_flagged", []):
-            if u not in self.running_facts["users_flagged"]:
+            if u and u not in self.running_facts["users_flagged"]:
                 self.running_facts["users_flagged"].append(u)
 
         self.running_facts["timeline_events"].extend(
@@ -717,6 +760,9 @@ class LiveMonitorFrame(ttk.Frame):
         score = result.get("risk_score", 0)
         level = result.get("risk_level", "LOW")
         self.risk_gauge.set_score(score, level=level, animate=True)
+
+        # 7. Render live findings cards
+        self._render_live_findings(result.get("findings", []))
 
         # 7. Detect newly fired rules and dispatch toast alerts
         findings: List[Dict[str, Any]] = result.get("findings", [])
