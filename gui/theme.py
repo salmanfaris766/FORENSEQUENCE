@@ -668,3 +668,110 @@ def _get_parent_bg(parent) -> str:
     if hasattr(parent, "master") and hasattr(parent.master, "_custom_bg"):
         return parent.master._custom_bg
     return VOID
+
+# =============================================================================
+# TOOLTIP HELPER
+# =============================================================================
+
+class CyberpunkTooltip:
+    """Floating tooltip with cyberpunk glass effect.
+
+    The tooltip appears near the mouse cursor when the user hovers over a widget.
+    It uses a semi‑transparent dark background with a cyan hairline border.
+    The tooltip is automatically destroyed when the mouse leaves the widget.
+    """
+
+    def __init__(self, widget: tk.Widget, text: str, *, delay: int = 400):
+        self.widget = widget
+        self.text = text
+        self.delay = delay  # milliseconds before showing tooltip
+        self.tooltip: tk.Toplevel | None = None
+        self._after_id: str | None = None
+        widget.bind("<Enter>", self._schedule_show)
+        widget.bind("<Leave>", self._hide_tooltip)
+        widget.bind("<Motion>", self._move_tooltip)
+
+    def _schedule_show(self, _event):
+        self._cancel_scheduled()
+        self._after_id = self.widget.after(self.delay, self._show_tooltip)
+
+    def _cancel_scheduled(self):
+        if self._after_id:
+            self.widget.after_cancel(self._after_id)
+            self._after_id = None
+
+    def _show_tooltip(self):
+        if self.tooltip:
+            return
+        # Create tooltip window
+        self.tooltip = tk.Toplevel(self.widget)
+        self.tooltip.wm_overrideredirect(True)
+        self.tooltip.wm_attributes("-topmost", True)
+        # Styling: dark semi‑transparent background with cyan border
+        frame = tk.Frame(
+            self.tooltip,
+            bg=VOID,
+            highlightbackground=CYAN,
+            highlightthickness=1,
+            padx=SP_2,
+            pady=SP_1,
+        )
+        frame.pack()
+        label = tk.Label(
+            frame,
+            text=self.text,
+            bg=VOID,
+            fg=TEXT_PRIMARY,
+            font=FONT_SMALL,
+            justify="left",
+            anchor="w",
+        )
+        label.pack()
+        self._position_tooltip()
+
+    def _position_tooltip(self):
+        if not self.tooltip:
+            return
+        # Position near mouse, avoid going off‑screen
+        x = self.widget.winfo_pointerx() + 12
+        y = self.widget.winfo_pointery() + 12
+        screen_w = self.widget.winfo_screenwidth()
+        screen_h = self.widget.winfo_screenheight()
+        self.tooltip.update_idletasks()
+        w = self.tooltip.winfo_width()
+        h = self.tooltip.winfo_height()
+        if x + w > screen_w:
+            x = screen_w - w - 4
+        if y + h > screen_h:
+            y = screen_h - h - 4
+        self.tooltip.wm_geometry(f"+{x}+{y}")
+
+    def _move_tooltip(self, _event):
+        if self.tooltip:
+            self._position_tooltip()
+
+    def _hide_tooltip(self, _event):
+        self._cancel_scheduled()
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
+
+def bind_tooltip(widget: tk.Widget, text: str, *, delay: int = 400) -> None:
+    """Convenience function to bind a CyberpunkTooltip to a widget.
+
+    Parameters
+    ----------
+    widget: tk.Widget
+        The target widget.
+    text: str
+        Tooltip text.
+    delay: int, optional
+        Milliseconds to wait before showing the tooltip (default 400).
+    """
+    CyberpunkTooltip(widget, text, delay=delay)
+
+# End of tooltip helper
+
+# =============================================================================
+# END OF FILE
+# =============================================================================

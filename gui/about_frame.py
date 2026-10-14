@@ -1,7 +1,9 @@
 # =============================================================================
 # gui/about_frame.py
-# FORENSEQUENCE - About & Architecture Credits (Placeholder Frame)
+# FORENSEQUENCE - About, Architecture & Academic Syllabus Mapping
 # =============================================================================
+
+from __future__ import annotations
 
 import tkinter as tk
 import ttkbootstrap as ttk
@@ -15,6 +17,7 @@ from gui.theme import (
     PINK,
     PURPLE,
     PLUM,
+    PEACH,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     TEXT_MUTED,
@@ -40,7 +43,7 @@ from gui.theme import (
 class AboutFrame(ttk.Frame):
     """
     About screen displaying project architecture, team roles,
-    and technological overview.
+    academic syllabus mapping, and technological specifications.
     """
 
     def __init__(self, parent: tk.Misc, shell=None):
@@ -74,7 +77,7 @@ class AboutFrame(ttk.Frame):
         create_divider(self, color=PLUM).pack(fill="x", padx=SP_6, pady=(0, SP_6))
 
         # Main About Glass Panel
-        glass = create_glass_frame(self, width=820, height=360, border_color=PURPLE, fill_color=DEEP)
+        glass = create_glass_frame(self, width=860, height=490, border_color=PURPLE, fill_color=DEEP)
         glass.pack(anchor="w", padx=SP_6, pady=(0, SP_6))
         inner = glass.inner_frame
 
@@ -97,6 +100,36 @@ class AboutFrame(ttk.Frame):
         ).pack(anchor="w", padx=SP_4, pady=(0, SP_4))
 
         create_divider(inner, color=PLUM).pack(fill="x", padx=SP_4, pady=(0, SP_4))
+
+        # Academic Syllabus Mapping
+        syllabus_frame = ttk.Frame(inner, style="Card.TFrame")
+        syllabus_frame.pack(fill="x", padx=SP_4, pady=(0, SP_3))
+
+        ttk.Label(
+            syllabus_frame,
+            text="Academic Syllabus Curriculum Alignment:",
+            foreground=PURPLE,
+            background=DEEP,
+            font=(FONT_FALLBACK, 10, "bold"),
+        ).pack(anchor="w", pady=(0, SP_1))
+
+        mapping_text = (
+            "• Knowledge Representation: Propositional logic Horn clauses with condition-conclusion pairs\n"
+            "• Inference Mechanism: Pure forward-chaining deduction engine reaching a monotonic fixpoint\n"
+            "• Explainability: Verifiable proof trace trees mapping observed evidence facts to derived conclusions\n"
+            "• Multi-Source Ingestion: Unified dispatcher for auth logs, file structures, web telemetry & emails\n"
+            "• Live Forensics: Low-latency watchdog file pointer tracking with thread-safe IPC queuing"
+        )
+        ttk.Label(
+            syllabus_frame,
+            text=mapping_text,
+            foreground=TEXT_PRIMARY,
+            background=DEEP,
+            font=FONT_SMALL,
+            justify="left",
+        ).pack(anchor="w")
+
+        create_divider(inner, color=PLUM).pack(fill="x", padx=SP_4, pady=(SP_2, SP_4))
 
         # Engineering Team Roles
         team_frame = ttk.Frame(inner, style="Card.TFrame")

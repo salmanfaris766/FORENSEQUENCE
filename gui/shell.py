@@ -182,6 +182,7 @@ class AppShell(ttk.Frame):
 
         self._build_layout()
         self._init_clock()
+        self._bind_shortcuts()
 
         # Route to default screen
         self.show_screen("Dashboard")
@@ -510,3 +511,32 @@ class AppShell(ttk.Frame):
         time_str = now.strftime("%Y-%m-%d  %H:%M:%S UTC")
         self.clock_label.config(text=time_str)
         self.after(1000, self._update_clock)
+
+    # -------------------------------------------------------------------------
+    # Global Keyboard Shortcuts
+    # -------------------------------------------------------------------------
+
+    def _bind_shortcuts(self) -> None:
+        """Bind global application keyboard shortcuts to root window."""
+        top = self.winfo_toplevel()
+        top.bind("<Control-d>", lambda e: self.show_screen("Dashboard"))
+        top.bind("<Control-D>", lambda e: self.show_screen("Dashboard"))
+        top.bind("<Control-n>", lambda e: self.show_screen("Cases"))
+        top.bind("<Control-N>", lambda e: self.show_screen("Cases"))
+        top.bind("<Control-r>", lambda e: self.show_screen("Reports"))
+        top.bind("<Control-R>", lambda e: self.show_screen("Reports"))
+        top.bind("<Control-m>", lambda e: self.show_screen("Live Monitor"))
+        top.bind("<Control-M>", lambda e: self.show_screen("Live Monitor"))
+        top.bind("<F11>", self._toggle_fullscreen)
+        top.bind("<Escape>", self._exit_fullscreen)
+
+    def _toggle_fullscreen(self, event=None) -> None:
+        """Toggle fullscreen display mode."""
+        top = self.winfo_toplevel()
+        is_fs = bool(top.attributes("-fullscreen"))
+        top.attributes("-fullscreen", not is_fs)
+
+    def _exit_fullscreen(self, event=None) -> None:
+        """Exit fullscreen display mode."""
+        top = self.winfo_toplevel()
+        top.attributes("-fullscreen", False)

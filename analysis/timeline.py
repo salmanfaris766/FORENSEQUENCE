@@ -112,12 +112,22 @@ def _normalize_evidence_event(raw_event: Dict[str, Any]) -> Dict[str, Any]:
     if not description:
         description = raw_event.get("raw_line", "")[:120]
 
+    # Determine severity, handling possible string representations
+    sev_raw = raw_event.get("severity", 0)
+    if isinstance(sev_raw, str):
+        sev_map = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+        severity = sev_map.get(sev_raw.lower(), 0)
+    else:
+        try:
+            severity = int(sev_raw)
+        except (ValueError, TypeError):
+            severity = 0
     return {
         "timestamp":   raw_event.get("timestamp", ""),
         "category":    cat,
         "title":       title,
         "description": description,
-        "severity":    int(raw_event.get("severity", 0)),
+        "severity":    severity,
         "source":      raw_event.get("source", "evidence"),
         "rule_code":   raw_event.get("rule_code", None),
         "raw":         raw_event.get("raw_line", None),
