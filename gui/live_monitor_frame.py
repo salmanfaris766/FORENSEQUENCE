@@ -141,13 +141,21 @@ class LiveMonitorFrame(ttk.Frame):
         # Track which rule codes have already fired to detect new firings
         self.known_fired_rules: set = set()
 
-        self._build_ui()
-        self._resolve_default_target_file()
+        try:
+            self._build_ui()
+            self._resolve_default_target_file()
+        except Exception as e:
+            import traceback
+            print(f"Error drawing Live Monitor: {e}")
+            traceback.print_exc()
 
         # Toast manager - root window resolved after UI is built
-        self.toast_manager: ToastNotificationManager = ToastNotificationManager(
-            self.winfo_toplevel()
-        )
+        try:
+            self.toast_manager: ToastNotificationManager = ToastNotificationManager(
+                self.winfo_toplevel()
+            )
+        except Exception:
+            self.toast_manager = None
 
         # Start thread-safe queue polling loop
         self._poll_scheduled = True
@@ -178,11 +186,14 @@ class LiveMonitorFrame(ttk.Frame):
         """Construct the visual hierarchy of the Live Monitor interface."""
         self.configure(style="TFrame")
 
+        self.main_container = ttk.Frame(self, style="TFrame")
+        self.main_container.pack(fill="both", expand=True)
+
         # ---------------------------------------------------------------------
         # 1. Top Control & Status Bar (Glass Panel)
         # ---------------------------------------------------------------------
         ctrl_card = create_glass_frame(
-            self, width=960, height=92, border_color=PURPLE, fill_color=DEEP
+            self.main_container, width=960, height=92, border_color=PURPLE, fill_color=DEEP
         )
         ctrl_card.pack(fill="x", padx=SP_6, pady=(SP_6, SP_2))
         inner_ctrl = ctrl_card.inner_frame
@@ -295,7 +306,7 @@ class LiveMonitorFrame(ttk.Frame):
         # 2. Telemetry & Fact Delta Display (Middle Row)
         # ---------------------------------------------------------------------
         telem_card = create_glass_frame(
-            self, width=960, height=115, border_color=CYAN, fill_color=DEEP
+            self.main_container, width=960, height=115, border_color=CYAN, fill_color=DEEP
         )
         telem_card.pack(fill="x", padx=SP_6, pady=(0, SP_2))
         inner_telem = telem_card.inner_frame
@@ -352,18 +363,21 @@ class LiveMonitorFrame(ttk.Frame):
         # ---------------------------------------------------------------------
         # 3. Main Split Content Area (50% Terminal, 50% Live Findings)
         # ---------------------------------------------------------------------
-        self.split_container = ttk.Frame(self, style="TFrame")
+        self.split_container = ttk.Frame(self.main_container, style="TFrame")
         self.split_container.pack(fill="both", expand=True, padx=SP_6, pady=(0, SP_4))
+        self.split_container.grid_rowconfigure(0, weight=1)
+        self.split_container.grid_columnconfigure(0, weight=1)
+        self.split_container.grid_columnconfigure(1, weight=1)
 
         # --- Left Column: Live Log Event Stream Terminal ---
         self.left_column = ttk.Frame(self.split_container, style="TFrame")
-        self.left_column.pack(side="left", fill="both", expand=True, padx=(0, SP_2))
+        self.left_column.grid(row=0, column=0, sticky="nsew", padx=(0, SP_2))
 
         self._build_terminal_panel()
 
         # --- Right Column: Live Triggered Findings & Reasoning ---
         self.right_column = ttk.Frame(self.split_container, style="TFrame")
-        self.right_column.pack(side="left", fill="both", expand=True, padx=(SP_2, 0))
+        self.right_column.grid(row=0, column=1, sticky="nsew", padx=(SP_2, 0))
 
         self._build_findings_panel()
 

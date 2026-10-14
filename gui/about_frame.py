@@ -78,7 +78,7 @@ class AboutFrame(ttk.Frame):
 
         # Main About Glass Panel
         glass = create_glass_frame(self, width=860, height=490, border_color=PURPLE, fill_color=DEEP)
-        glass.pack(anchor="w", padx=SP_6, pady=(0, SP_6))
+        glass.pack(fill="both", expand=True, padx=SP_6, pady=(0, SP_6))
         inner = glass.inner_frame
 
         ttk.Label(

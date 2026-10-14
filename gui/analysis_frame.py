@@ -215,17 +215,19 @@ class AnalysisFrame(ttk.Frame):
         # ---------------------------------------------------------------------
         self.body_container = ttk.Frame(self, style="TFrame")
         self.body_container.pack(fill="both", expand=True, padx=SP_6, pady=(0, SP_4))
+        self.body_container.grid_rowconfigure(0, weight=1)
+        self.body_container.grid_columnconfigure(0, weight=4)
+        self.body_container.grid_columnconfigure(1, weight=6)
 
-        # --- Left Column (38% width): Section A - Extracted Evidence Facts ---
-        self.left_column = ttk.Frame(self.body_container, style="TFrame", width=380)
-        self.left_column.pack(side="left", fill="both", expand=False, padx=(0, SP_3))
-        self.left_column.pack_propagate(False)
+        # --- Left Column (40% width): Section A - Extracted Evidence Facts ---
+        self.left_column = ttk.Frame(self.body_container, style="TFrame")
+        self.left_column.grid(row=0, column=0, sticky="nsew", padx=(0, SP_3))
 
         self._build_facts_panel()
 
-        # --- Right Column (62% width): Section B, Section C & Section D ---
+        # --- Right Column (60% width): Section B, Section C & Section D ---
         self.right_column = ttk.Frame(self.body_container, style="TFrame")
-        self.right_column.pack(side="left", fill="both", expand=True)
+        self.right_column.grid(row=0, column=1, sticky="nsew")
 
         self._build_findings_panel()
         self._build_timeline_panel()

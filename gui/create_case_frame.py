@@ -132,17 +132,19 @@ class CreateCaseFrame(ttk.Frame):
         # ---------------------------------------------------------------------
         self.main_container = ttk.Frame(self, style="TFrame")
         self.main_container.pack(fill="both", expand=True, padx=SP_6, pady=(0, SP_4))
+        self.main_container.grid_rowconfigure(0, weight=1)
+        self.main_container.grid_columnconfigure(0, weight=4)
+        self.main_container.grid_columnconfigure(1, weight=6)
 
         # --- Column A: CREATE NEW INVESTIGATION Panel (Left) ---
-        self.left_column = ttk.Frame(self.main_container, style="TFrame", width=470)
-        self.left_column.pack(side="left", fill="both", expand=False, padx=(0, SP_4))
-        self.left_column.pack_propagate(False)
+        self.left_column = ttk.Frame(self.main_container, style="TFrame")
+        self.left_column.grid(row=0, column=0, sticky="nsew", padx=(0, SP_4))
 
         self._build_create_panel()
 
         # --- Column B: CASE ARCHIVE Panel (Right) ---
         self.right_column = ttk.Frame(self.main_container, style="TFrame")
-        self.right_column.pack(side="left", fill="both", expand=True)
+        self.right_column.grid(row=0, column=1, sticky="nsew")
 
         self._build_archive_panel()
 

@@ -475,7 +475,7 @@ class ReportFrame(ttk.Frame):
 
         # Center wrapper with letter-proportioned document container
         center_wrap = ttk.Frame(self.doc_content, style="TFrame")
-        center_wrap.pack(fill="x", padx=SP_4, pady=(0, SP_6))
+        center_wrap.pack(fill="both", expand=True, padx=SP_4, pady=(0, SP_6))
 
         # Main Document Dossier Card
         doc_card = tk.Frame(
@@ -485,7 +485,7 @@ class ReportFrame(ttk.Frame):
             highlightbackground=STEEL,
             bd=0,
         )
-        doc_card.pack(fill="x", padx=SP_2, pady=SP_2)
+        doc_card.pack(fill="both", expand=True, padx=SP_2, pady=SP_2)
 
         # Document Header Banner
         self._render_preview_header(doc_card, case)

@@ -356,17 +356,19 @@ class CaseDetailFrame(ttk.Frame):
         # ---------------------------------------------------------------------
         cols_container = ttk.Frame(self.main_content, style="TFrame")
         cols_container.pack(fill="both", expand=True)
+        cols_container.grid_rowconfigure(0, weight=1)
+        cols_container.grid_columnconfigure(0, weight=4)
+        cols_container.grid_columnconfigure(1, weight=6)
 
         # Left Column (40% width): Import Evidence
-        left_col = ttk.Frame(cols_container, style="TFrame", width=420)
-        left_col.pack(side="left", fill="both", expand=False, padx=(0, SP_3))
-        left_col.pack_propagate(False)
+        left_col = ttk.Frame(cols_container, style="TFrame")
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, SP_3))
 
         self._build_import_panel(left_col)
 
         # Right Column (60% width): Evidence Inventory
         right_col = ttk.Frame(cols_container, style="TFrame")
-        right_col.pack(side="left", fill="both", expand=True)
+        right_col.grid(row=0, column=1, sticky="nsew")
 
         self._build_inventory_panel(right_col)
 

@@ -107,9 +107,9 @@ def apply_theme(app: ttk.Window) -> None:
     app.configure(background=VOID)
 
     # -- TFrame --
-    style.configure("TFrame", background=VOID)
-    style.configure("Card.TFrame", background=DEEP)
-    style.configure("Panel.TFrame", background=ABYSS)
+    style.configure("TFrame", background=VOID, borderwidth=0, relief="flat")
+    style.configure("Card.TFrame", background=DEEP, borderwidth=0, relief="flat")
+    style.configure("Panel.TFrame", background=ABYSS, borderwidth=0, relief="flat")
 
     # -- TLabel --
     style.configure(
@@ -117,30 +117,49 @@ def apply_theme(app: ttk.Window) -> None:
         background=VOID,
         foreground=TEXT_PRIMARY,
         font=FONT_BODY,
+        borderwidth=0,
+    )
+    style.configure(
+        "Card.TLabel",
+        background=DEEP,
+        foreground=TEXT_PRIMARY,
+        font=FONT_BODY,
+        borderwidth=0,
+    )
+    style.configure(
+        "Panel.TLabel",
+        background=ABYSS,
+        foreground=TEXT_PRIMARY,
+        font=FONT_BODY,
+        borderwidth=0,
     )
     style.configure(
         "Secondary.TLabel",
         background=VOID,
         foreground=TEXT_SECONDARY,
         font=FONT_BODY,
+        borderwidth=0,
     )
     style.configure(
         "Muted.TLabel",
         background=VOID,
         foreground=TEXT_MUTED,
         font=FONT_SMALL,
+        borderwidth=0,
     )
     style.configure(
         "Heading.TLabel",
         background=VOID,
         foreground=TEXT_PRIMARY,
         font=FONT_HEADING,
+        borderwidth=0,
     )
     style.configure(
         "Section.TLabel",
         background=VOID,
         foreground=CYAN,
         font=FONT_SECTION,
+        borderwidth=0,
     )
 
     # -- TButton --
@@ -342,6 +361,7 @@ def _draw_glow_border(
     radius: int,
     glow_color: str,
     layers: int = 3,
+    **kwargs,
 ) -> None:
     """
     Simulate a neon outer glow by drawing progressively larger, more-transparent
@@ -365,6 +385,7 @@ def _draw_glow_border(
             fill="",
             outline=blended,
             width=1,
+            **kwargs,
         )
 
 
@@ -392,58 +413,91 @@ def create_glass_frame(
     Returns the Canvas widget. Attach child widgets using canvas.create_window().
     A convenience attribute canvas.inner_frame (ttk.Frame) is placed inside
     the canvas so callers can pack/grid normal widgets into it.
+    Automatically responds to geometry changes to dynamically stretch.
     """
+    canvas_bg = _get_parent_bg(parent)
     canvas = tk.Canvas(
         parent,
         width=width,
         height=height,
-        bg=_get_parent_bg(parent),
+        bg=canvas_bg,
         highlightthickness=0,
         bd=0,
     )
 
     pad = 6  # Glow bleed padding
 
-    # Glow layers
-    _draw_glow_border(
-        canvas,
-        pad, pad,
-        width - pad, height - pad,
-        radius,
-        glow_color=border_color,
-        layers=3,
-    )
-
-    # Glass fill
-    _draw_rounded_rect(
-        canvas,
-        pad, pad,
-        width - pad, height - pad,
-        radius,
-        fill=fill_color,
-        outline="",
-    )
-
-    # Hairline neon border
-    _draw_rounded_rect(
-        canvas,
-        pad, pad,
-        width - pad, height - pad,
-        radius,
-        fill="",
-        outline=border_color,
-        width=1,
-    )
-
     # Inner frame for child widgets
     inner = ttk.Frame(canvas, style="Card.TFrame")
-    canvas.create_window(
+    inner._custom_bg = fill_color
+    canvas.inner_frame = inner
+
+    win_id = canvas.create_window(
         width // 2, height // 2,
         window=inner,
-        width=width - (pad * 2) - 4,
-        height=height - (pad * 2) - 4,
+        width=max(1, width - (pad * 2) - 4),
+        height=max(1, height - (pad * 2) - 4),
     )
-    inner._custom_bg = fill_color
+
+    def _render(w: int, h: int):
+        canvas.delete("glass_shape")
+        if w <= (pad * 2) + 4 or h <= (pad * 2) + 4:
+            return
+
+        # Glow layers
+        _draw_glow_border(
+            canvas,
+            pad, pad,
+            w - pad, h - pad,
+            radius,
+            glow_color=border_color,
+            layers=3,
+            tags="glass_shape",
+        )
+
+        # Glass fill
+        _draw_rounded_rect(
+            canvas,
+            pad, pad,
+            w - pad, h - pad,
+            radius,
+            fill=fill_color,
+            outline="",
+            tags="glass_shape",
+        )
+
+        # Hairline neon border
+        _draw_rounded_rect(
+            canvas,
+            pad, pad,
+            w - pad, h - pad,
+            radius,
+            fill="",
+            outline=border_color,
+            width=1,
+            tags="glass_shape",
+        )
+
+        canvas.tag_lower("glass_shape")
+        canvas.coords(win_id, w // 2, h // 2)
+        canvas.itemconfigure(
+            win_id,
+            width=max(1, w - (pad * 2) - 4),
+            height=max(1, h - (pad * 2) - 4),
+        )
+
+    _render(width, height)
+
+    last_dims = [width, height]
+
+    def _on_canvas_configure(event):
+        if event.widget == canvas:
+            if event.width != last_dims[0] or event.height != last_dims[1]:
+                last_dims[0] = event.width
+                last_dims[1] = event.height
+                _render(event.width, event.height)
+
+    canvas.bind("<Configure>", _on_canvas_configure)
     canvas.inner_frame = inner
 
     return canvas
@@ -634,17 +688,26 @@ def create_styled_entry(parent, placeholder: str = "") -> tk.Entry:
     return entry
 
 
-def create_divider(parent, color: str = PLUM) -> tk.Canvas:
+def create_divider(parent, color: str = PLUM, orient: str = "horizontal") -> tk.Canvas:
     """
-    Return a 1px horizontal separator line canvas widget.
+    Return a 1px horizontal or vertical separator line canvas widget.
     """
-    line = tk.Canvas(
-        parent,
-        height=1,
-        bg=color,
-        highlightthickness=0,
-        bd=0,
-    )
+    if orient == "vertical":
+        line = tk.Canvas(
+            parent,
+            width=1,
+            bg=color,
+            highlightthickness=0,
+            bd=0,
+        )
+    else:
+        line = tk.Canvas(
+            parent,
+            height=1,
+            bg=color,
+            highlightthickness=0,
+            bd=0,
+        )
     return line
 
 
@@ -655,18 +718,20 @@ def create_divider(parent, color: str = PLUM) -> tk.Canvas:
 def _get_parent_bg(parent) -> str:
     """
     Attempt to retrieve the background color of a parent widget.
+    Traverses parent hierarchy looking for _custom_bg or configured background.
     Falls back to VOID if unavailable.
     """
-    if hasattr(parent, "_custom_bg"):
-        return parent._custom_bg
-    try:
-        bg = parent.cget("background")
-        if bg:
-            return bg
-    except Exception:
-        pass
-    if hasattr(parent, "master") and hasattr(parent.master, "_custom_bg"):
-        return parent.master._custom_bg
+    curr = parent
+    while curr is not None:
+        if hasattr(curr, "_custom_bg") and curr._custom_bg:
+            return curr._custom_bg
+        try:
+            bg = curr.cget("background")
+            if bg and bg not in ("", "SystemButtonFace"):
+                return bg
+        except Exception:
+            pass
+        curr = getattr(curr, "master", None)
     return VOID
 
 # =============================================================================

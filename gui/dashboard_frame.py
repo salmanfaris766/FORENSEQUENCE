@@ -140,12 +140,15 @@ class DashboardFrame(ttk.Frame):
         # ---------------------------------------------------------------------
         self.cards_row = ttk.Frame(self, style="TFrame")
         self.cards_row.pack(fill="x", padx=SP_6, pady=(0, SP_4))
+        self.cards_row.grid_columnconfigure(0, weight=1)
+        self.cards_row.grid_columnconfigure(1, weight=1)
+        self.cards_row.grid_columnconfigure(2, weight=1)
 
         # Card 1: ACTIVE CASES (CYAN large number in Orbitron font)
         card1 = create_glass_frame(
             self.cards_row, width=310, height=115, border_color=CYAN, fill_color=DEEP
         )
-        card1.pack(side="left", padx=(0, SP_3))
+        card1.grid(row=0, column=0, sticky="nsew", padx=(0, SP_2))
         inner1 = card1.inner_frame
 
         ttk.Label(
@@ -178,7 +181,7 @@ class DashboardFrame(ttk.Frame):
         card2 = create_glass_frame(
             self.cards_row, width=310, height=115, border_color=ICE, fill_color=DEEP
         )
-        card2.pack(side="left", padx=(0, SP_3))
+        card2.grid(row=0, column=1, sticky="nsew", padx=(SP_2, SP_2))
         inner2 = card2.inner_frame
 
         ttk.Label(
@@ -211,7 +214,7 @@ class DashboardFrame(ttk.Frame):
         card3 = create_glass_frame(
             self.cards_row, width=310, height=115, border_color=PINK, fill_color=DEEP
         )
-        card3.pack(side="left")
+        card3.grid(row=0, column=2, sticky="nsew", padx=(SP_2, 0))
         inner3 = card3.inner_frame
 
         card3_row = ttk.Frame(inner3, style="Card.TFrame")
