@@ -3,61 +3,64 @@
 # FORENSEQUENCE - Forward Chaining AI Reasoning & Analysis Screen
 # =============================================================================
 
+from __future__ import annotations
+
 import os
 import tkinter as tk
-import ttkbootstrap as ttk
 from typing import Optional, Callable, Dict, Any, List
+import ttkbootstrap as ttk
 
 from gui.risk_gauge_widget import CyberpunkRiskGauge
 from analysis.risk_engine import calculate_risk
 
 from gui.theme import (
-    VOID,
-    ABYSS,
-    DEEP,
-    STEEL,
+    APP_BG,
+    BG_SECONDARY,
+    PANEL_BG,
+    PANEL_ELEVATED,
+    PANEL_HOVER,
+    BORDER,
+    BORDER_SECONDARY,
+    MINT,
     CYAN,
-    ICE,
-    PINK,
-    MAGENTA,
-    PURPLE,
-    PLUM,
-    PEACH,
+    CYAN_GLOW,
+    TEAL,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     TEXT_MUTED,
+    CRITICAL,
+    HIGH,
+    MEDIUM,
+    LOW,
     FONT_FALLBACK,
-    FONT_DISPLAY,
     FONT_MONO_FALLBACK,
-    FONT_HEADING,
-    FONT_SUBHEADING,
-    FONT_SECTION,
-    FONT_BODY,
-    FONT_SMALL,
-    FONT_MONO_SM,
-    FONT_MONO_BODY,
     FS_XS,
     FS_SM,
     FS_BASE,
     FS_MD,
     FS_LG,
     FS_XL,
-    FS_2XL,
     SP_1,
     SP_2,
     SP_3,
     SP_4,
     SP_6,
     SP_8,
-    RADIUS_SM,
-    RADIUS_MD,
-    create_glass_frame,
+    create_soc_panel,
+    create_soc_button,
+    create_soc_badge,
     create_section_header,
-    create_badge,
     create_divider,
-    create_neon_button,
     risk_color,
     risk_label,
+    # Backward compatibility aliases
+    VOID,
+    ABYSS,
+    DEEP,
+    STEEL,
+    create_glass_frame,
+    create_neon_button,
+    create_badge,
 )
 
 from analyzers import parse_evidence_item, merge_facts_list
@@ -130,37 +133,75 @@ class AnalysisFrame(ttk.Frame):
         self.configure(style="TFrame")
 
         # ---------------------------------------------------------------------
-        # 1. Top Header & Control Bar
+        # 1. Header Bar
         # ---------------------------------------------------------------------
-        header_card = create_glass_frame(
-            self, width=960, height=130, border_color=PURPLE, fill_color=DEEP
-        )
-        header_card.pack(fill="x", padx=SP_6, pady=(SP_6, SP_3))
-        inner_h = header_card.inner_frame
+        self.header_bar = ttk.Frame(self, style="TFrame")
+        self.header_bar.pack(fill="x", padx=SP_6, pady=(SP_6, SP_2))
 
-        # Left Header Block: Title + Case Badge + Risk Badge
+        ttk.Label(
+            self.header_bar,
+            text="OPERATIONS / AI THREAT ANALYSIS",
+            foreground=TEXT_MUTED,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_XS, "normal"),
+        ).pack(anchor="w")
+
+        title_row = ttk.Frame(self.header_bar, style="TFrame")
+        title_row.pack(fill="x", pady=(SP_1, 0))
+
+        ttk.Label(
+            title_row,
+            text="Forward Chaining Reasoning Engine",
+            foreground=TEXT_PRIMARY,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_XL, "bold"),
+        ).pack(side="left")
+
+        badge = create_soc_badge(title_row, "EXPERT SYSTEM INFERENCE", color=MINT, bg=APP_BG)
+        badge.pack(side="left", padx=(SP_4, 0))
+
+        ttk.Label(
+            self.header_bar,
+            text="Deterministic propositional inference, explainable proof traces, and forensic event reconstruction.",
+            foreground=TEXT_MUTED,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
+        ).pack(anchor="w", pady=(2, 0))
+
+        create_divider(self, color=BORDER).pack(fill="x", padx=SP_6, pady=(SP_3, SP_3))
+
+        # ---------------------------------------------------------------------
+        # 2. Top Control Bar (SOC Panel)
+        # ---------------------------------------------------------------------
+        ctrl_card = create_soc_panel(
+            self, width=960, height=115, border_color=BORDER, bg=PANEL_BG
+        )
+        ctrl_card.pack(fill="x", padx=SP_6, pady=(0, SP_3))
+        inner_h = ctrl_card.inner_frame
+
+        # Left Header Block: Case Context + Risk Badges + Score
         left_h = ttk.Frame(inner_h, style="Card.TFrame")
-        left_h._custom_bg = DEEP
+        left_h._custom_bg = PANEL_BG
         left_h.pack(side="left", fill="both", expand=True, padx=SP_4, pady=SP_2)
 
-        create_section_header(left_h, "FORWARD CHAINING AI REASONING ENGINE").pack(anchor="w")
+        create_section_header(left_h, "ACTIVE INVESTIGATION ANALYSIS CONTROLS").pack(anchor="w")
 
         info_row = ttk.Frame(left_h, style="Card.TFrame")
-        info_row._custom_bg = DEEP
-        info_row.pack(anchor="w", pady=(2, 0))
+        info_row._custom_bg = PANEL_BG
+        info_row.pack(anchor="w", pady=(SP_2, 0))
 
         # Case Context Badge
         self.case_badge_container = ttk.Frame(info_row, style="Card.TFrame")
-        self.case_badge_container._custom_bg = DEEP
+        self.case_badge_container._custom_bg = PANEL_BG
         self.case_badge_container.pack(side="left", padx=(0, SP_2))
-        self.badge_case = create_badge(self.case_badge_container, "NO ACTIVE CASE", TEXT_MUTED, bg=DEEP)
+        self.badge_case = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEXT_MUTED, bg=PANEL_BG)
         self.badge_case.pack(side="left")
 
         # Risk Band Badge
         self.risk_badge_container = ttk.Frame(info_row, style="Card.TFrame")
-        self.risk_badge_container._custom_bg = DEEP
+        self.risk_badge_container._custom_bg = PANEL_BG
         self.risk_badge_container.pack(side="left", padx=(0, SP_3))
-        self.badge_risk = create_badge(self.risk_badge_container, "RISK: --", TEXT_MUTED, bg=DEEP)
+        self.badge_risk = create_soc_badge(self.risk_badge_container, "RISK: --", color=TEXT_MUTED, bg=PANEL_BG)
         self.badge_risk.pack(side="left")
 
         # Numeric Risk Score Display
@@ -168,50 +209,50 @@ class AnalysisFrame(ttk.Frame):
             info_row,
             text="SCORE: -- / 100",
             foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=(FONT_DISPLAY, FS_SM, "bold"),
+            background=PANEL_BG,
+            font=(FONT_MONO_FALLBACK, FS_BASE, "bold"),
         )
         self.lbl_risk_score.pack(side="left")
 
-        # Center: Compact Risk Gauge
+        # Center: Compact Cyberpunk Risk Gauge
         gauge_frame = ttk.Frame(inner_h, style="Card.TFrame")
-        gauge_frame._custom_bg = DEEP
+        gauge_frame._custom_bg = PANEL_BG
         gauge_frame.pack(side="left", fill="y", padx=SP_3, pady=SP_1)
 
         self.header_gauge = CyberpunkRiskGauge(
             gauge_frame,
-            size=140,
+            size=130,
             score=0,
             compact=True,
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         self.header_gauge.pack()
 
-        # Right Action Bar: [RUN FORWARD CHAINING] & [CLEAR FINDINGS]
+        # Right Action Bar: [RUN FORWARD CHAINING ANALYSIS] & [CLEAR FINDINGS]
         right_h = ttk.Frame(inner_h, style="Card.TFrame")
-        right_h._custom_bg = DEEP
+        right_h._custom_bg = PANEL_BG
         right_h.pack(side="right", fill="y", padx=SP_4, pady=SP_2)
 
-        self.btn_run = create_neon_button(
+        self.btn_run = create_soc_button(
             right_h,
             text="[RUN FORWARD CHAINING ANALYSIS]",
             command=self.run_analysis,
             variant="primary",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
-        self.btn_run.pack(side="top", fill="x", pady=(0, 2))
+        self.btn_run.pack(side="top", fill="x", pady=(0, 4))
 
-        self.btn_clear = create_neon_button(
+        self.btn_clear = create_soc_button(
             right_h,
             text="[CLEAR FINDINGS]",
             command=self._handle_clear_findings,
             variant="ghost",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         self.btn_clear.pack(side="top", fill="x")
 
         # ---------------------------------------------------------------------
-        # 2. Main Two-Column Content Workspace
+        # 3. Main Two-Column Content Workspace
         # ---------------------------------------------------------------------
         self.body_container = ttk.Frame(self, style="TFrame")
         self.body_container.pack(fill="both", expand=True, padx=SP_6, pady=(0, SP_4))
@@ -239,11 +280,11 @@ class AnalysisFrame(ttk.Frame):
 
     def _build_facts_panel(self) -> None:
         """Render the multi-source evidence facts metric panel."""
-        glass = create_glass_frame(
-            self.left_column, width=380, height=530, border_color=CYAN, fill_color=DEEP
+        panel = create_soc_panel(
+            self.left_column, width=380, height=530, border_color=BORDER, bg=PANEL_BG
         )
-        glass.pack(fill="both", expand=True)
-        inner = glass.inner_frame
+        panel.pack(fill="both", expand=True)
+        inner = panel.inner_frame
 
         create_section_header(inner, "EXTRACTED EVIDENCE FACTS").pack(
             anchor="w", padx=SP_4, pady=(SP_3, SP_1)
@@ -253,27 +294,27 @@ class AnalysisFrame(ttk.Frame):
             inner,
             text="Deterministic signals harvested across multi-source evidence artifacts.",
             foreground=TEXT_MUTED,
-            background=DEEP,
-            font=FONT_SMALL,
+            background=PANEL_BG,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
             wraplength=340,
             justify="left",
         ).pack(anchor="w", padx=SP_4, pady=(0, SP_2))
 
-        create_divider(inner, color=PLUM).pack(fill="x", padx=SP_4, pady=(0, SP_2))
+        create_divider(inner, color=BORDER).pack(fill="x", padx=SP_4, pady=(0, SP_2))
 
         # Scrollable container for facts
         scroll_wrapper = ttk.Frame(inner, style="Card.TFrame")
-        scroll_wrapper._custom_bg = DEEP
+        scroll_wrapper._custom_bg = PANEL_BG
         scroll_wrapper.pack(fill="both", expand=True, padx=SP_2, pady=(0, SP_3))
 
-        self.facts_canvas = tk.Canvas(scroll_wrapper, bg=DEEP, highlightthickness=0, bd=0)
+        self.facts_canvas = tk.Canvas(scroll_wrapper, bg=PANEL_BG, highlightthickness=0, bd=0)
         self.facts_scrollbar = ttk.Scrollbar(
             scroll_wrapper, orient="vertical", command=self.facts_canvas.yview
         )
         self.facts_canvas.configure(yscrollcommand=self.facts_scrollbar.set)
 
         self.facts_content = ttk.Frame(self.facts_canvas, style="Card.TFrame")
-        self.facts_content._custom_bg = DEEP
+        self.facts_content._custom_bg = PANEL_BG
         self.facts_window_id = self.facts_canvas.create_window(
             (0, 0), window=self.facts_content, anchor="nw"
         )
@@ -301,66 +342,66 @@ class AnalysisFrame(ttk.Frame):
         self.facts_scrollbar.pack(side="right", fill="y")
 
         # 1. Multi-Source Ingestion Badges Row
-        src_row = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+        src_row = tk.Frame(self.facts_content, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER, bd=0)
         src_row.pack(fill="x", padx=SP_2, pady=(0, SP_2))
 
         ttk.Label(
             src_row,
             text="EVIDENCE SOURCES INGESTED",
             foreground=TEXT_SECONDARY,
-            background=ABYSS,
+            background=PANEL_ELEVATED,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(anchor="w", padx=SP_3, pady=(4, 2))
 
-        badges_flow = tk.Frame(src_row, bg=ABYSS)
+        badges_flow = tk.Frame(src_row, bg=PANEL_ELEVATED)
         badges_flow.pack(fill="x", padx=SP_2, pady=(0, 4))
 
-        self.badge_src_log_container = tk.Frame(badges_flow, bg=ABYSS)
+        self.badge_src_log_container = tk.Frame(badges_flow, bg=PANEL_ELEVATED)
         self.badge_src_log_container.pack(side="left", padx=2, pady=1)
-        self.badge_src_log = create_badge(self.badge_src_log_container, "LOG: 0", CYAN, bg=ABYSS)
+        self.badge_src_log = create_soc_badge(self.badge_src_log_container, "LOG: 0", color=CYAN, bg=PANEL_ELEVATED)
         self.badge_src_log.pack()
 
-        self.badge_src_file_container = tk.Frame(badges_flow, bg=ABYSS)
+        self.badge_src_file_container = tk.Frame(badges_flow, bg=PANEL_ELEVATED)
         self.badge_src_file_container.pack(side="left", padx=2, pady=1)
-        self.badge_src_file = create_badge(self.badge_src_file_container, "FILE: 0", PEACH, bg=ABYSS)
+        self.badge_src_file = create_soc_badge(self.badge_src_file_container, "FILE: 0", color=HIGH, bg=PANEL_ELEVATED)
         self.badge_src_file.pack()
 
-        self.badge_src_browser_container = tk.Frame(badges_flow, bg=ABYSS)
+        self.badge_src_browser_container = tk.Frame(badges_flow, bg=PANEL_ELEVATED)
         self.badge_src_browser_container.pack(side="left", padx=2, pady=1)
-        self.badge_src_browser = create_badge(self.badge_src_browser_container, "BROWSER: 0", PURPLE, bg=ABYSS)
+        self.badge_src_browser = create_soc_badge(self.badge_src_browser_container, "BROWSER: 0", color=TEAL, bg=PANEL_ELEVATED)
         self.badge_src_browser.pack()
 
-        self.badge_src_email_container = tk.Frame(badges_flow, bg=ABYSS)
+        self.badge_src_email_container = tk.Frame(badges_flow, bg=PANEL_ELEVATED)
         self.badge_src_email_container.pack(side="left", padx=2, pady=1)
-        self.badge_src_email = create_badge(self.badge_src_email_container, "EMAIL: 0", PINK, bg=ABYSS)
+        self.badge_src_email = create_soc_badge(self.badge_src_email_container, "EMAIL: 0", color=CRITICAL, bg=PANEL_ELEVATED)
         self.badge_src_email.pack()
 
         # 2. Metric spec cards
         self.fact_metric_labels = {}
         metrics_spec = [
             ("failed_logins", "FAILED AUTH ATTEMPTS", CYAN),
-            ("successful_logins", "SUCCESSFUL LOGINS", ICE),
-            ("usb_connections", "USB MEDIA ATTACHMENTS", PEACH),
-            ("executable_events", "SUSPICIOUS EXECUTIONS", PINK),
-            ("deleted_files", "FILE DELETION EVENTS", PINK),
-            ("suspicious_domains", "SUSPICIOUS DOMAINS / BEACONS", MAGENTA),
-            ("hidden_files", "HIDDEN FORENSIC FILES", PEACH),
-            ("autorun_entries", "AUTORUN PERSISTENCE ARTIFACTS", PURPLE),
-            ("unknown_sender_count", "UNKNOWN SENDER EMAILS", PINK),
-            ("executable_attachment_count", "EXECUTABLE ATTACHMENTS", PINK),
-            ("urgent_subjects_count", "URGENT / COERCIVE EMAILS", PEACH),
+            ("successful_logins", "SUCCESSFUL LOGINS", MINT),
+            ("usb_connections", "USB MEDIA ATTACHMENTS", HIGH),
+            ("executable_events", "SUSPICIOUS EXECUTIONS", CRITICAL),
+            ("deleted_files", "FILE DELETION EVENTS", CRITICAL),
+            ("suspicious_domains", "SUSPICIOUS DOMAINS / BEACONS", HIGH),
+            ("hidden_files", "HIDDEN FORENSIC FILES", HIGH),
+            ("autorun_entries", "AUTORUN PERSISTENCE ARTIFACTS", TEAL),
+            ("unknown_sender_count", "UNKNOWN SENDER EMAILS", CRITICAL),
+            ("executable_attachment_count", "EXECUTABLE ATTACHMENTS", CRITICAL),
+            ("urgent_subjects_count", "URGENT / COERCIVE EMAILS", HIGH),
             ("suspicious_searches_count", "SUSPICIOUS SEARCH QUERIES", CYAN),
         ]
 
         for key, title, col in metrics_spec:
-            row = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+            row = tk.Frame(self.facts_content, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER, bd=0)
             row.pack(fill="x", padx=SP_2, pady=2)
 
             ttk.Label(
                 row,
                 text=title,
                 foreground=TEXT_SECONDARY,
-                background=ABYSS,
+                background=PANEL_ELEVATED,
                 font=(FONT_FALLBACK, FS_XS, "bold"),
             ).pack(side="left", padx=SP_3, pady=4)
 
@@ -368,89 +409,88 @@ class AnalysisFrame(ttk.Frame):
                 row,
                 text="--",
                 foreground=col,
-                background=ABYSS,
-                font=(FONT_DISPLAY, FS_BASE, "bold"),
+                background=PANEL_ELEVATED,
+                font=(FONT_MONO_FALLBACK, FS_BASE, "bold"),
             )
             lbl_val.pack(side="right", padx=SP_3, pady=4)
             self.fact_metric_labels[key] = lbl_val
 
-        # Monospace Detail Blocks:
-        # IPs
-        chip_box = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+        # Flagged IPs
+        chip_box = tk.Frame(self.facts_content, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER, bd=0)
         chip_box.pack(fill="x", padx=SP_2, pady=(SP_2, 2))
         ttk.Label(
             chip_box,
             text="FLAGGED IP ADDRESSES",
             foreground=TEXT_SECONDARY,
-            background=ABYSS,
+            background=PANEL_ELEVATED,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(anchor="w", padx=SP_3, pady=(4, 1))
         self.lbl_ips = ttk.Label(
             chip_box,
             text="None detected",
             foreground=CYAN,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            background=PANEL_ELEVATED,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
             wraplength=330,
         )
         self.lbl_ips.pack(anchor="w", padx=SP_3, pady=(0, 4))
 
-        # Users
-        user_box = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+        # Flagged Users
+        user_box = tk.Frame(self.facts_content, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER, bd=0)
         user_box.pack(fill="x", padx=SP_2, pady=2)
         ttk.Label(
             user_box,
             text="FLAGGED USER ACCOUNTS",
             foreground=TEXT_SECONDARY,
-            background=ABYSS,
+            background=PANEL_ELEVATED,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(anchor="w", padx=SP_3, pady=(4, 1))
         self.lbl_users = ttk.Label(
             user_box,
             text="None detected",
-            foreground=ICE,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            foreground=MINT,
+            background=PANEL_ELEVATED,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
             wraplength=330,
         )
         self.lbl_users.pack(anchor="w", padx=SP_3, pady=(0, 4))
 
-        # Phishing / Flagged URLs
-        url_box = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+        # Flagged Domains & URLs
+        url_box = tk.Frame(self.facts_content, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER, bd=0)
         url_box.pack(fill="x", padx=SP_2, pady=2)
         ttk.Label(
             url_box,
             text="FLAGGED DOMAINS & EXFIL URLS",
             foreground=TEXT_SECONDARY,
-            background=ABYSS,
+            background=PANEL_ELEVATED,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(anchor="w", padx=SP_3, pady=(4, 1))
         self.lbl_urls = ttk.Label(
             url_box,
             text="None detected",
-            foreground=MAGENTA,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            foreground=HIGH,
+            background=PANEL_ELEVATED,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
             wraplength=330,
         )
         self.lbl_urls.pack(anchor="w", padx=SP_3, pady=(0, 4))
 
-        # Flagged Emails
-        mail_box = tk.Frame(self.facts_content, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, bd=0)
+        # Malicious Email Senders
+        mail_box = tk.Frame(self.facts_content, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER, bd=0)
         mail_box.pack(fill="x", padx=SP_2, pady=(2, SP_3))
         ttk.Label(
             mail_box,
             text="MALICIOUS EMAIL SENDER VECTORS",
             foreground=TEXT_SECONDARY,
-            background=ABYSS,
+            background=PANEL_ELEVATED,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(anchor="w", padx=SP_3, pady=(4, 1))
         self.lbl_emails = ttk.Label(
             mail_box,
             text="None detected",
-            foreground=PINK,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            foreground=CRITICAL,
+            background=PANEL_ELEVATED,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
             wraplength=330,
         )
         self.lbl_emails.pack(anchor="w", padx=SP_3, pady=(0, 4))
@@ -461,15 +501,15 @@ class AnalysisFrame(ttk.Frame):
 
     def _build_findings_panel(self) -> None:
         """Render the scrollable list of derived findings with proof cards."""
-        glass = create_glass_frame(
-            self.right_column, width=580, height=210, border_color=STEEL, fill_color=DEEP
+        panel = create_soc_panel(
+            self.right_column, width=580, height=210, border_color=BORDER, bg=PANEL_BG
         )
-        glass.pack(fill="both", expand=True, pady=(0, SP_2))
-        inner = glass.inner_frame
+        panel.pack(fill="both", expand=True, pady=(0, SP_2))
+        inner = panel.inner_frame
 
         # Header Row
         hdr_row = ttk.Frame(inner, style="Card.TFrame")
-        hdr_row._custom_bg = DEEP
+        hdr_row._custom_bg = PANEL_BG
         hdr_row.pack(fill="x", padx=SP_4, pady=(SP_3, SP_1))
 
         create_section_header(hdr_row, "DERIVED FORENSIC FINDINGS").pack(side="left")
@@ -478,26 +518,26 @@ class AnalysisFrame(ttk.Frame):
             hdr_row,
             text="0 FINDINGS",
             foreground=TEXT_MUTED,
-            background=DEEP,
-            font=FONT_MONO_SM,
+            background=PANEL_BG,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
         )
         self.lbl_findings_count.pack(side="right")
 
-        create_divider(inner, color=PLUM).pack(fill="x", padx=SP_4, pady=(0, SP_2))
+        create_divider(inner, color=BORDER).pack(fill="x", padx=SP_4, pady=(0, SP_2))
 
         # Scrollable container for findings
         scroll_wrapper = ttk.Frame(inner, style="Card.TFrame")
-        scroll_wrapper._custom_bg = DEEP
+        scroll_wrapper._custom_bg = PANEL_BG
         scroll_wrapper.pack(fill="both", expand=True, padx=SP_2, pady=(0, SP_2))
 
-        self.findings_canvas = tk.Canvas(scroll_wrapper, bg=DEEP, highlightthickness=0, bd=0)
+        self.findings_canvas = tk.Canvas(scroll_wrapper, bg=PANEL_BG, highlightthickness=0, bd=0)
         self.findings_scrollbar = ttk.Scrollbar(
             scroll_wrapper, orient="vertical", command=self.findings_canvas.yview
         )
         self.findings_canvas.configure(yscrollcommand=self.findings_scrollbar.set)
 
         self.findings_content = ttk.Frame(self.findings_canvas, style="Card.TFrame")
-        self.findings_content._custom_bg = DEEP
+        self.findings_content._custom_bg = PANEL_BG
         self.findings_win_id = self.findings_canvas.create_window(
             (0, 0), window=self.findings_content, anchor="nw"
         )
@@ -533,70 +573,69 @@ class AnalysisFrame(ttk.Frame):
     # -------------------------------------------------------------------------
 
     def _build_timeline_panel(self) -> None:
-        """Render the scrollable chronological timeline sequence with filter chips and neon spine."""
-        glass = create_glass_frame(
-            self.right_column, width=580, height=230, border_color=CYAN, fill_color=DEEP
+        """Render the scrollable chronological timeline sequence with filter chips and SOC spine."""
+        panel = create_soc_panel(
+            self.right_column, width=580, height=230, border_color=BORDER, bg=PANEL_BG
         )
-        glass.pack(fill="both", expand=True, pady=(0, SP_2))
-        inner = glass.inner_frame
+        panel.pack(fill="both", expand=True, pady=(0, SP_2))
+        inner = panel.inner_frame
 
         # Header Row: Title + Sort Toggle + Event Count
         hdr_row = ttk.Frame(inner, style="Card.TFrame")
-        hdr_row._custom_bg = DEEP
+        hdr_row._custom_bg = PANEL_BG
         hdr_row.pack(fill="x", padx=SP_4, pady=(SP_2, 2))
 
         create_section_header(hdr_row, "CHRONOLOGICAL EVENT SEQUENCE").pack(side="left")
 
         right_hdr = ttk.Frame(hdr_row, style="Card.TFrame")
-        right_hdr._custom_bg = DEEP
+        right_hdr._custom_bg = PANEL_BG
         right_hdr.pack(side="right")
 
         self.btn_sort_order = tk.Label(
             right_hdr,
             text="[OLDEST FIRST]",
             font=(FONT_FALLBACK, FS_XS, "bold"),
-            bg=DEEP,
+            bg=PANEL_ELEVATED,
             fg=CYAN,
             cursor="hand2",
             padx=6,
             pady=2,
-            bd=1,
-            relief="solid",
+            bd=0,
             highlightthickness=1,
-            highlightbackground=PLUM,
+            highlightbackground=BORDER,
         )
         self.btn_sort_order.pack(side="left", padx=(0, SP_2))
-        self.btn_sort_order.bind("<Enter>", lambda _: self.btn_sort_order.configure(fg=ICE, bg=ABYSS))
-        self.btn_sort_order.bind("<Leave>", lambda _: self.btn_sort_order.configure(fg=CYAN, bg=DEEP))
+        self.btn_sort_order.bind("<Enter>", lambda _: self.btn_sort_order.configure(fg=MINT, bg=PANEL_HOVER))
+        self.btn_sort_order.bind("<Leave>", lambda _: self.btn_sort_order.configure(fg=CYAN, bg=PANEL_ELEVATED))
         self.btn_sort_order.bind("<Button-1>", lambda _: self._toggle_sort_order())
 
         self.lbl_timeline_count = ttk.Label(
             right_hdr,
             text="0 EVENTS",
             foreground=TEXT_MUTED,
-            background=DEEP,
-            font=FONT_MONO_SM,
+            background=PANEL_BG,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
         )
         self.lbl_timeline_count.pack(side="left")
 
         # Category Filter Chips Bar
         self._build_filter_chips(inner)
 
-        create_divider(inner, color=PLUM).pack(fill="x", padx=SP_4, pady=(2, SP_2))
+        create_divider(inner, color=BORDER).pack(fill="x", padx=SP_4, pady=(2, SP_2))
 
         # Scrollable container for timeline events
         scroll_wrapper = ttk.Frame(inner, style="Card.TFrame")
-        scroll_wrapper._custom_bg = DEEP
+        scroll_wrapper._custom_bg = PANEL_BG
         scroll_wrapper.pack(fill="both", expand=True, padx=SP_2, pady=(0, SP_2))
 
-        self.timeline_canvas = tk.Canvas(scroll_wrapper, bg=DEEP, highlightthickness=0, bd=0)
+        self.timeline_canvas = tk.Canvas(scroll_wrapper, bg=PANEL_BG, highlightthickness=0, bd=0)
         self.timeline_scrollbar = ttk.Scrollbar(
             scroll_wrapper, orient="vertical", command=self.timeline_canvas.yview
         )
         self.timeline_canvas.configure(yscrollcommand=self.timeline_scrollbar.set)
 
         self.timeline_content = ttk.Frame(self.timeline_canvas, style="Card.TFrame")
-        self.timeline_content._custom_bg = DEEP
+        self.timeline_content._custom_bg = PANEL_BG
         self.timeline_win_id = self.timeline_canvas.create_window(
             (0, 0), window=self.timeline_content, anchor="nw"
         )
@@ -630,14 +669,14 @@ class AnalysisFrame(ttk.Frame):
     def _build_filter_chips(self, parent: tk.Widget) -> None:
         """Render interactive category filter chips for forensic event sequence."""
         chips_frame = ttk.Frame(parent, style="Card.TFrame")
-        chips_frame._custom_bg = DEEP
+        chips_frame._custom_bg = PANEL_BG
         chips_frame.pack(fill="x", padx=SP_4, pady=(2, 2))
 
         ttk.Label(
             chips_frame,
             text="FILTER:",
             foreground=TEXT_MUTED,
-            background=DEEP,
+            background=PANEL_BG,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(side="left", padx=(0, SP_2))
 
@@ -662,12 +701,11 @@ class AnalysisFrame(ttk.Frame):
                 padx=6,
                 pady=1,
                 cursor="hand2",
-                bd=1,
-                relief="solid",
-                bg=ABYSS,
+                bd=0,
+                bg=PANEL_ELEVATED,
                 fg=TEXT_SECONDARY,
                 highlightthickness=1,
-                highlightbackground=STEEL,
+                highlightbackground=BORDER,
             )
             btn.pack(side="left", padx=2)
             btn.bind("<Button-1>", lambda e, c=code: self._set_timeline_filter(c))
@@ -686,15 +724,15 @@ class AnalysisFrame(ttk.Frame):
         for code, btn in self._filter_chips.items():
             if code == self.active_timeline_filter:
                 btn.configure(
-                    bg=CYAN,
-                    fg=VOID,
-                    highlightbackground=ICE,
+                    bg=MINT,
+                    fg=APP_BG,
+                    highlightbackground=MINT,
                 )
             else:
                 btn.configure(
-                    bg=ABYSS,
+                    bg=PANEL_ELEVATED,
                     fg=TEXT_SECONDARY,
-                    highlightbackground=STEEL,
+                    highlightbackground=BORDER,
                 )
 
     def _toggle_sort_order(self) -> None:
@@ -705,49 +743,49 @@ class AnalysisFrame(ttk.Frame):
         self._render_timeline_entries()
 
     def _get_category_node_color(self, category: str, severity: int = 0) -> str:
-        """Map event categories to Cyberpunk neon palette indicators."""
+        """Map event categories to SOC palette indicators."""
         cat = category.lower()
         if cat == "failed_login":
-            return PINK
+            return CRITICAL
         elif cat == "successful_login":
-            return CYAN
+            return MINT
         elif cat == "usb_connection":
-            return PEACH
+            return HIGH
         elif cat == "executable_event":
-            return PURPLE
+            return HIGH
         elif cat == "deleted_file":
-            return MAGENTA
+            return CRITICAL
         elif cat == "browser_navigation":
             return CYAN
         elif cat == "malicious_email":
-            return PINK
+            return CRITICAL
         elif cat in ("hidden_file", "autorun_entry", "suspicious_extension"):
-            return PEACH
+            return HIGH
         elif cat == "large_file":
-            return PURPLE
+            return TEAL
         elif cat == "finding":
             if severity >= 25:
-                return PINK
+                return CRITICAL
             elif severity >= 15:
-                return PEACH
-            return PURPLE
+                return HIGH
+            return MEDIUM
         return CYAN
 
     def _render_timeline_entries(self) -> None:
-        """Render all matching timeline entries onto the scrollable canvas with neon spine lines."""
+        """Render all matching timeline entries onto the scrollable canvas with vertical spine line."""
         for child in self.timeline_content.winfo_children():
             child.destroy()
 
         if not self.raw_timeline:
             empty_box = ttk.Frame(self.timeline_content, style="Card.TFrame")
-            empty_box._custom_bg = DEEP
+            empty_box._custom_bg = PANEL_BG
             empty_box.pack(fill="x", padx=SP_4, pady=SP_4)
 
             ttk.Label(
                 empty_box,
                 text="NO TIMELINE EVENTS AVAILABLE",
                 foreground=TEXT_SECONDARY,
-                background=DEEP,
+                background=PANEL_BG,
                 font=(FONT_FALLBACK, FS_MD, "bold"),
             ).pack(anchor="w", pady=(0, 2))
 
@@ -755,13 +793,12 @@ class AnalysisFrame(ttk.Frame):
                 empty_box,
                 text="No timeline events available. Run analysis on evidence with timestamps.",
                 foreground=TEXT_MUTED,
-                background=DEEP,
-                font=FONT_BODY,
+                background=PANEL_BG,
+                font=(FONT_FALLBACK, FS_BASE, "normal"),
             ).pack(anchor="w")
             self.lbl_timeline_count.config(text="0 EVENTS")
             return
 
-        # Map filter code to category list
         cat_map = {
             "ALL": None,
             "AUTH": ["failed_login", "successful_login"],
@@ -783,14 +820,14 @@ class AnalysisFrame(ttk.Frame):
 
         if not filtered:
             empty_box = ttk.Frame(self.timeline_content, style="Card.TFrame")
-            empty_box._custom_bg = DEEP
+            empty_box._custom_bg = PANEL_BG
             empty_box.pack(fill="x", padx=SP_4, pady=SP_4)
 
             ttk.Label(
                 empty_box,
                 text="NO MATCHING EVENTS",
                 foreground=TEXT_SECONDARY,
-                background=DEEP,
+                background=PANEL_BG,
                 font=(FONT_FALLBACK, FS_MD, "bold"),
             ).pack(anchor="w", pady=(0, 2))
 
@@ -798,8 +835,8 @@ class AnalysisFrame(ttk.Frame):
                 empty_box,
                 text=f"No forensic events match the active '{self.active_timeline_filter}' filter.",
                 foreground=TEXT_MUTED,
-                background=DEEP,
-                font=FONT_BODY,
+                background=PANEL_BG,
+                font=(FONT_FALLBACK, FS_BASE, "normal"),
             ).pack(anchor="w")
             return
 
@@ -808,7 +845,7 @@ class AnalysisFrame(ttk.Frame):
             self._render_timeline_row(entry, idx, total_items)
 
     def _render_timeline_row(self, entry: Dict[str, Any], idx: int, total_items: int) -> None:
-        """Render a single event card along the vertical neon spine line."""
+        """Render a single event card along the vertical spine line."""
         is_first = (idx == 0)
         is_last = (idx == total_items - 1)
         severity = int(entry.get("severity", 0))
@@ -816,23 +853,23 @@ class AnalysisFrame(ttk.Frame):
         node_color = self._get_category_node_color(cat, severity)
 
         if severity >= 25:
-            accent_col = PINK
+            accent_col = CRITICAL
         elif severity >= 15:
-            accent_col = PEACH
+            accent_col = HIGH
         else:
             accent_col = CYAN
 
         row = tk.Frame(
             self.timeline_content,
-            bg=ABYSS,
+            bg=PANEL_ELEVATED,
             highlightthickness=1,
-            highlightbackground=STEEL,
+            highlightbackground=BORDER,
             bd=0,
         )
         row.pack(fill="x", padx=SP_2, pady=2)
 
-        # Left Neon Spine Canvas
-        spine_cv = tk.Canvas(row, width=28, bg=ABYSS, highlightthickness=0, bd=0)
+        # Left Spine Canvas
+        spine_cv = tk.Canvas(row, width=28, bg=PANEL_ELEVATED, highlightthickness=0, bd=0)
         spine_cv.pack(side="left", fill="y")
 
         def _draw_spine(event, cv=spine_cv, fst=is_first, lst=is_last, col=node_color):
@@ -842,24 +879,24 @@ class AnalysisFrame(ttk.Frame):
             if fst and lst:
                 pass
             elif fst:
-                cv.create_line(14, 14, 14, h, fill=PLUM, width=2)
+                cv.create_line(14, 14, 14, h, fill=BORDER, width=2)
             elif lst:
-                cv.create_line(14, 0, 14, 14, fill=PLUM, width=2)
+                cv.create_line(14, 0, 14, 14, fill=BORDER, width=2)
             else:
-                cv.create_line(14, 0, 14, h, fill=PLUM, width=2)
+                cv.create_line(14, 0, 14, h, fill=BORDER, width=2)
 
-            # Circular node with outer ring and inner glow
-            cv.create_oval(8, 8, 20, 20, fill=col, outline=VOID, width=1)
-            cv.create_oval(11, 11, 17, 17, fill=ICE, outline="")
+            # Circular node
+            cv.create_oval(8, 8, 20, 20, fill=col, outline=APP_BG, width=1)
+            cv.create_oval(11, 11, 17, 17, fill=MINT, outline="")
 
         spine_cv.bind("<Configure>", _draw_spine)
 
         # Card Content Body
-        card_body = tk.Frame(row, bg=ABYSS)
+        card_body = tk.Frame(row, bg=PANEL_ELEVATED)
         card_body.pack(side="left", fill="both", expand=True, padx=(SP_1, SP_3), pady=4)
 
         # Top Metadata Line: Timestamp + Badges
-        top_line = tk.Frame(card_body, bg=ABYSS)
+        top_line = tk.Frame(card_body, bg=PANEL_ELEVATED)
         top_line.pack(fill="x", pady=(0, 2))
 
         ts_text = entry.get("timestamp") or "TIMESTAMP N/A"
@@ -867,27 +904,27 @@ class AnalysisFrame(ttk.Frame):
             top_line,
             text=ts_text,
             foreground=TEXT_MUTED,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            background=PANEL_ELEVATED,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
         ).pack(side="left", padx=(0, SP_2))
 
         # Source badge
         source = entry.get("source", "evidence")
         if source == "ai_inference":
-            src_badge = create_badge(top_line, "AI INFERENCE", PURPLE, bg=ABYSS)
+            src_badge = create_soc_badge(top_line, "AI INFERENCE", color=TEAL, bg=PANEL_ELEVATED)
         else:
-            src_badge = create_badge(top_line, "EVIDENCE", CYAN, bg=ABYSS)
+            src_badge = create_soc_badge(top_line, "EVIDENCE", color=CYAN, bg=PANEL_ELEVATED)
         src_badge.pack(side="left", padx=(0, 4))
 
         # Rule badge if present
         rule_code = entry.get("rule_code")
         if rule_code:
-            r_badge = create_badge(top_line, rule_code, PURPLE, bg=ABYSS)
+            r_badge = create_soc_badge(top_line, rule_code, color=MINT, bg=PANEL_ELEVATED)
             r_badge.pack(side="left", padx=(0, 4))
 
         # Severity badge if present
         if severity > 0:
-            sev_badge = create_badge(top_line, f"+{severity} PTS", accent_col, bg=ABYSS)
+            sev_badge = create_soc_badge(top_line, f"+{severity} PTS", color=accent_col, bg=PANEL_ELEVATED)
             sev_badge.pack(side="right")
 
         # Title Line
@@ -896,7 +933,7 @@ class AnalysisFrame(ttk.Frame):
             card_body,
             text=title_text,
             foreground=TEXT_PRIMARY,
-            background=ABYSS,
+            background=PANEL_ELEVATED,
             font=(FONT_FALLBACK, FS_SM, "bold"),
             anchor="w",
         ).pack(fill="x", pady=(0, 2))
@@ -908,8 +945,8 @@ class AnalysisFrame(ttk.Frame):
                 card_body,
                 text=desc_text,
                 foreground=TEXT_SECONDARY,
-                background=ABYSS,
-                font=FONT_SMALL,
+                background=PANEL_ELEVATED,
+                font=(FONT_FALLBACK, FS_SM, "normal"),
                 anchor="w",
                 wraplength=460,
                 justify="left",
@@ -925,8 +962,8 @@ class AnalysisFrame(ttk.Frame):
                 card_body,
                 text=f"RAW: {raw_preview}",
                 foreground=TEXT_MUTED,
-                background=ABYSS,
-                font=FONT_MONO_SM,
+                background=PANEL_ELEVATED,
+                font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
                 anchor="w",
                 wraplength=460,
                 justify="left",
@@ -938,15 +975,15 @@ class AnalysisFrame(ttk.Frame):
 
     def _build_trace_panel(self) -> None:
         """Render the dark monospace terminal displaying the deduction proof log."""
-        glass = create_glass_frame(
-            self.right_column, width=580, height=150, border_color=PURPLE, fill_color=ABYSS
+        panel = create_soc_panel(
+            self.right_column, width=580, height=150, border_color=BORDER, bg=PANEL_BG
         )
-        glass.pack(fill="both", expand=True)
-        inner = glass.inner_frame
+        panel.pack(fill="both", expand=True)
+        inner = panel.inner_frame
 
         # Terminal Header
-        hdr_row = ttk.Frame(inner, style="Panel.TFrame")
-        hdr_row._custom_bg = ABYSS
+        hdr_row = ttk.Frame(inner, style="Card.TFrame")
+        hdr_row._custom_bg = PANEL_BG
         hdr_row.pack(fill="x", padx=SP_4, pady=(SP_2, 2))
 
         create_section_header(hdr_row, "EXPLAINABLE INFERENCE PROOF LOG").pack(side="left")
@@ -955,38 +992,38 @@ class AnalysisFrame(ttk.Frame):
             hdr_row,
             text="FORWARD CHAINING PROOF TRACE",
             foreground=TEXT_MUTED,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            background=PANEL_BG,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
         ).pack(side="right")
 
-        create_divider(inner, color=PLUM).pack(fill="x", padx=SP_4, pady=(2, 4))
+        create_divider(inner, color=BORDER).pack(fill="x", padx=SP_4, pady=(2, 4))
 
         # Monospace Text Box
-        term_frame = ttk.Frame(inner, style="Panel.TFrame")
-        term_frame._custom_bg = ABYSS
+        term_frame = ttk.Frame(inner, style="Card.TFrame")
+        term_frame._custom_bg = PANEL_BG
         term_frame.pack(fill="both", expand=True, padx=SP_3, pady=(0, SP_2))
 
         self.txt_trace = tk.Text(
             term_frame,
-            bg=VOID,
+            bg=APP_BG,
             fg=TEXT_PRIMARY,
             insertbackground=CYAN,
             relief="flat",
-            font=FONT_MONO_SM,
+            font=(FONT_MONO_FALLBACK, FS_SM, "normal"),
             highlightthickness=1,
-            highlightbackground=PLUM,
-            highlightcolor=PURPLE,
+            highlightbackground=BORDER,
+            highlightcolor=CYAN,
             wrap="word",
         )
         trace_scroll = ttk.Scrollbar(term_frame, orient="vertical", command=self.txt_trace.yview)
         self.txt_trace.configure(yscrollcommand=trace_scroll.set)
 
         # Syntax Highlighting Tags
-        self.txt_trace.tag_configure("iteration", foreground=PURPLE, font=(FONT_MONO_FALLBACK, FS_SM, "bold"))
-        self.txt_trace.tag_configure("rule", foreground=CYAN, font=(FONT_MONO_FALLBACK, FS_SM, "bold"))
-        self.txt_trace.tag_configure("fact", foreground=PEACH)
+        self.txt_trace.tag_configure("iteration", foreground=CYAN, font=(FONT_MONO_FALLBACK, FS_SM, "bold"))
+        self.txt_trace.tag_configure("rule", foreground=MINT, font=(FONT_MONO_FALLBACK, FS_SM, "bold"))
+        self.txt_trace.tag_configure("fact", foreground=HIGH)
         self.txt_trace.tag_configure("expl", foreground=TEXT_SECONDARY)
-        self.txt_trace.tag_configure("summary", foreground=ICE, font=(FONT_MONO_FALLBACK, FS_SM, "bold"))
+        self.txt_trace.tag_configure("summary", foreground=CYAN_GLOW, font=(FONT_MONO_FALLBACK, FS_SM, "bold"))
         self.txt_trace.tag_configure("info", foreground=TEXT_MUTED)
 
         self.txt_trace.pack(side="left", fill="both", expand=True)
@@ -1084,7 +1121,7 @@ class AnalysisFrame(ttk.Frame):
 
         for child in self.risk_badge_container.winfo_children():
             child.destroy()
-        badge = create_badge(self.risk_badge_container, f"RISK: {risk_lvl}", r_color, bg=DEEP)
+        badge = create_soc_badge(self.risk_badge_container, f"RISK: {risk_lvl}", color=r_color, bg=PANEL_BG)
         badge.pack(side="left")
 
         # Animate the compact header gauge
@@ -1094,19 +1131,19 @@ class AnalysisFrame(ttk.Frame):
         if hasattr(self, "badge_src_log_container"):
             for child in self.badge_src_log_container.winfo_children():
                 child.destroy()
-            create_badge(self.badge_src_log_container, f"LOG: {facts.get('total_lines', 0)}", CYAN, bg=ABYSS).pack()
+            create_soc_badge(self.badge_src_log_container, f"LOG: {facts.get('total_lines', 0)}", color=CYAN, bg=PANEL_ELEVATED).pack()
 
             for child in self.badge_src_file_container.winfo_children():
                 child.destroy()
-            create_badge(self.badge_src_file_container, f"FILE: {facts.get('total_files', 0)}", PEACH, bg=ABYSS).pack()
+            create_soc_badge(self.badge_src_file_container, f"FILE: {facts.get('total_files', 0)}", color=HIGH, bg=PANEL_ELEVATED).pack()
 
             for child in self.badge_src_browser_container.winfo_children():
                 child.destroy()
-            create_badge(self.badge_src_browser_container, f"BROWSER: {facts.get('total_visits', 0)}", PURPLE, bg=ABYSS).pack()
+            create_soc_badge(self.badge_src_browser_container, f"BROWSER: {facts.get('total_visits', 0)}", color=TEAL, bg=PANEL_ELEVATED).pack()
 
             for child in self.badge_src_email_container.winfo_children():
                 child.destroy()
-            create_badge(self.badge_src_email_container, f"EMAIL: {facts.get('total_emails', 0)}", PINK, bg=ABYSS).pack()
+            create_soc_badge(self.badge_src_email_container, f"EMAIL: {facts.get('total_emails', 0)}", color=CRITICAL, bg=PANEL_ELEVATED).pack()
 
         # 3. Update Metrics Counters
         for key, lbl in self.fact_metric_labels.items():
@@ -1137,7 +1174,7 @@ class AnalysisFrame(ttk.Frame):
         else:
             self.lbl_emails.config(text="None detected")
 
-        # 3. Update Section B Findings List
+        # 4. Update Section B Findings List
         findings = result.get("findings", [])
         self.lbl_findings_count.config(text=f"{len(findings)} FINDINGS")
 
@@ -1146,14 +1183,14 @@ class AnalysisFrame(ttk.Frame):
 
         if not findings:
             empty_box = ttk.Frame(self.findings_content, style="Card.TFrame")
-            empty_box._custom_bg = DEEP
+            empty_box._custom_bg = PANEL_BG
             empty_box.pack(fill="x", padx=SP_4, pady=SP_6)
 
             ttk.Label(
                 empty_box,
                 text="NO RISK FINDINGS DERIVED",
                 foreground=TEXT_SECONDARY,
-                background=DEEP,
+                background=PANEL_BG,
                 font=(FONT_FALLBACK, FS_MD, "bold"),
             ).pack(anchor="w", pady=(0, 2))
 
@@ -1161,14 +1198,14 @@ class AnalysisFrame(ttk.Frame):
                 empty_box,
                 text="Forward Chaining rules evaluated without triggering risk thresholds.",
                 foreground=TEXT_MUTED,
-                background=DEEP,
-                font=FONT_BODY,
+                background=PANEL_BG,
+                font=(FONT_FALLBACK, FS_BASE, "normal"),
             ).pack(anchor="w")
         else:
             for item in findings:
                 self._render_finding_card(item)
 
-        # 4. Update Section C Proof Terminal
+        # 5. Update Section D Proof Terminal
         self.txt_trace.config(state="normal")
         self.txt_trace.delete("1.0", tk.END)
 
@@ -1197,24 +1234,24 @@ class AnalysisFrame(ttk.Frame):
         )
         self.txt_trace.config(state="disabled")
 
-        # 5. Update Section C Chronological Timeline Sequence
+        # 6. Update Section C Chronological Timeline Sequence
         self._render_timeline_entries()
 
     def _render_finding_card(self, finding: Dict[str, Any]) -> None:
         """Render a single derived finding card with proof breakdown."""
         severity = int(finding.get("severity", 0))
         if severity >= 25:
-            accent_col = PINK
+            accent_col = CRITICAL
         elif severity >= 15:
-            accent_col = PEACH
+            accent_col = HIGH
         else:
             accent_col = CYAN
 
         card = tk.Frame(
             self.findings_content,
-            bg=ABYSS,
+            bg=PANEL_ELEVATED,
             highlightthickness=1,
-            highlightbackground=STEEL,
+            highlightbackground=BORDER,
             bd=0,
         )
         card.pack(fill="x", padx=SP_2, pady=SP_2)
@@ -1223,26 +1260,26 @@ class AnalysisFrame(ttk.Frame):
         accent_bar = tk.Canvas(card, width=4, bg=accent_col, highlightthickness=0, bd=0)
         accent_bar.pack(side="left", fill="y")
 
-        card_body = tk.Frame(card, bg=ABYSS)
+        card_body = tk.Frame(card, bg=PANEL_ELEVATED)
         card_body.pack(side="left", fill="both", expand=True, padx=SP_3, pady=SP_2)
 
         # Top Line: Rule Badge + Title + Severity Weight
-        top_line = tk.Frame(card_body, bg=ABYSS)
+        top_line = tk.Frame(card_body, bg=PANEL_ELEVATED)
         top_line.pack(fill="x", pady=(0, 2))
 
-        rule_badge = create_badge(top_line, finding.get("rule_code", "R000"), PURPLE, bg=ABYSS)
+        rule_badge = create_soc_badge(top_line, finding.get("rule_code", "R000"), color=MINT, bg=PANEL_ELEVATED)
         rule_badge.pack(side="left", padx=(0, SP_2))
 
         ttk.Label(
             top_line,
             text=finding.get("name", "Unknown Finding"),
             foreground=TEXT_PRIMARY,
-            background=ABYSS,
+            background=PANEL_ELEVATED,
             font=(FONT_FALLBACK, FS_BASE, "bold"),
             anchor="w",
         ).pack(side="left", fill="x", expand=True)
 
-        sev_badge = create_badge(top_line, f"+{severity} PTS", accent_col, bg=ABYSS)
+        sev_badge = create_soc_badge(top_line, f"+{severity} PTS", color=accent_col, bg=PANEL_ELEVATED)
         sev_badge.pack(side="right")
 
         # Description
@@ -1250,22 +1287,22 @@ class AnalysisFrame(ttk.Frame):
             card_body,
             text=finding.get("description", ""),
             foreground=TEXT_SECONDARY,
-            background=ABYSS,
-            font=FONT_SMALL,
+            background=PANEL_ELEVATED,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
             anchor="w",
             wraplength=480,
             justify="left",
         ).pack(fill="x", pady=(0, 4))
 
         # Explanation / Proof Box
-        proof_box = tk.Frame(card_body, bg=DEEP, padx=6, pady=4)
+        proof_box = tk.Frame(card_body, bg=PANEL_BG, padx=6, pady=4)
         proof_box.pack(fill="x")
 
         ttk.Label(
             proof_box,
             text="WHY THIS FIRED (FACT PROOF):",
             foreground=TEXT_MUTED,
-            background=DEEP,
+            background=PANEL_BG,
             font=(FONT_FALLBACK, FS_XS, "bold"),
             anchor="w",
         ).pack(fill="x")
@@ -1273,9 +1310,9 @@ class AnalysisFrame(ttk.Frame):
         ttk.Label(
             proof_box,
             text=finding.get("explanation", ""),
-            foreground=ICE,
-            background=DEEP,
-            font=FONT_MONO_SM,
+            foreground=MINT,
+            background=PANEL_BG,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
             wraplength=460,
             justify="left",
             anchor="w",
@@ -1292,7 +1329,7 @@ class AnalysisFrame(ttk.Frame):
         # Reset badges & headers
         for child in self.risk_badge_container.winfo_children():
             child.destroy()
-        badge = create_badge(self.risk_badge_container, "RISK: --", TEXT_MUTED, bg=DEEP)
+        badge = create_soc_badge(self.risk_badge_container, "RISK: --", color=TEXT_MUTED, bg=PANEL_BG)
         badge.pack(side="left")
         self.lbl_risk_score.config(text="SCORE: -- / 100", foreground=TEXT_SECONDARY)
 
@@ -1301,6 +1338,8 @@ class AnalysisFrame(ttk.Frame):
             lbl.config(text="--")
         self.lbl_ips.config(text="None detected")
         self.lbl_users.config(text="None detected")
+        self.lbl_urls.config(text="None detected")
+        self.lbl_emails.config(text="None detected")
 
         # Reset findings
         self.lbl_findings_count.config(text="0 FINDINGS")
@@ -1308,14 +1347,14 @@ class AnalysisFrame(ttk.Frame):
             child.destroy()
 
         empty_box = ttk.Frame(self.findings_content, style="Card.TFrame")
-        empty_box._custom_bg = DEEP
+        empty_box._custom_bg = PANEL_BG
         empty_box.pack(fill="x", padx=SP_4, pady=SP_6)
 
         ttk.Label(
             empty_box,
             text="NO ANALYSIS PERFORMED YET",
             foreground=TEXT_SECONDARY,
-            background=DEEP,
+            background=PANEL_BG,
             font=(FONT_FALLBACK, FS_MD, "bold"),
         ).pack(anchor="w", pady=(0, 2))
 
@@ -1323,8 +1362,8 @@ class AnalysisFrame(ttk.Frame):
             empty_box,
             text="Click [RUN FORWARD CHAINING ANALYSIS] to evaluate forensic evidence.",
             foreground=TEXT_MUTED,
-            background=DEEP,
-            font=FONT_BODY,
+            background=PANEL_BG,
+            font=(FONT_FALLBACK, FS_BASE, "normal"),
         ).pack(anchor="w")
 
         # Reset terminal trace
@@ -1351,10 +1390,10 @@ class AnalysisFrame(ttk.Frame):
 
         if case:
             c_text = f"CASE: {case['case_number']}"
-            c_badge = create_badge(self.case_badge_container, c_text, CYAN, bg=DEEP)
+            c_badge = create_soc_badge(self.case_badge_container, c_text, color=CYAN, bg=PANEL_BG)
             c_badge.pack(side="left")
         else:
-            c_badge = create_badge(self.case_badge_container, "NO ACTIVE CASE", TEXT_MUTED, bg=DEEP)
+            c_badge = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEXT_MUTED, bg=PANEL_BG)
             c_badge.pack(side="left")
 
         # 2. Check existing findings in SQLite
@@ -1370,7 +1409,7 @@ class AnalysisFrame(ttk.Frame):
                 self.lbl_risk_score.config(text=f"SCORE: {score} / 100", foreground=r_color)
                 for child in self.risk_badge_container.winfo_children():
                     child.destroy()
-                badge = create_badge(self.risk_badge_container, f"RISK: {r_lbl}", r_color, bg=DEEP)
+                badge = create_soc_badge(self.risk_badge_container, f"RISK: {r_lbl}", color=r_color, bg=PANEL_BG)
                 badge.pack(side="left")
 
                 # Animate the header gauge for the loaded DB findings

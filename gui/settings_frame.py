@@ -1,6 +1,6 @@
 # =============================================================================
 # gui/settings_frame.py
-# FORENSEQUENCE - Application Configuration & Settings
+# FORENSEQUENCE - Workstation Preferences & Telemetry Configuration
 # =============================================================================
 
 from __future__ import annotations
@@ -11,44 +11,47 @@ from typing import Optional
 
 from config import ConfigManager
 from gui.theme import (
-    VOID,
-    ABYSS,
-    DEEP,
-    STEEL,
+    APP_BG,
+    BG_SECONDARY,
+    PANEL_BG,
+    PANEL_ELEVATED,
+    BORDER,
+    BORDER_SECONDARY,
+    MINT,
     CYAN,
-    PINK,
-    PURPLE,
-    PLUM,
-    PEACH,
+    TEAL,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     TEXT_MUTED,
+    CRITICAL,
+    HIGH,
     FONT_FALLBACK,
-    FONT_HEADING,
-    FONT_SUBHEADING,
-    FONT_SECTION,
-    FONT_BODY,
-    FONT_SMALL,
+    FONT_MONO_FALLBACK,
+    FS_XS,
+    FS_SM,
+    FS_BASE,
+    FS_MD,
+    FS_XL,
     SP_1,
     SP_2,
     SP_3,
     SP_4,
     SP_6,
     SP_8,
-    create_glass_frame,
+    create_soc_panel,
+    create_soc_button,
+    create_soc_badge,
     create_section_header,
-    create_badge,
     create_divider,
-    create_neon_button,
-    create_styled_entry,
     bind_tooltip,
 )
 
 
 class SettingsFrame(ttk.Frame):
     """
-    Application Settings & Preferences screen.
-    Configure evidence storage paths, investigator profile, and live telemetry parameters.
+    Workstation Preferences & Telemetry Configuration screen.
+    Manages investigator profiles, evidence storage paths, and live telemetry parameters.
+    Persists configuration to config.json via ConfigManager.
     """
 
     def __init__(self, parent: tk.Misc, shell=None):
@@ -66,7 +69,7 @@ class SettingsFrame(ttk.Frame):
         self._build_ui()
 
     def _load_current_settings(self) -> None:
-        """Load values from ConfigManager into variables."""
+        """Load values from ConfigManager into tkinter variables."""
         cfg = ConfigManager.as_dict()
         self.investigator_var.set(str(cfg.get("default_investigator", "Salman")))
         self.export_dir_var.set(str(cfg.get("export_directory", "uploads")))
@@ -74,239 +77,256 @@ class SettingsFrame(ttk.Frame):
         self.toast_duration_var.set(str(cfg.get("toast_duration_ms", 5000)))
         self.auto_run_var.set(bool(cfg.get("auto_run_analysis", True)))
 
+    # =========================================================================
+    # Layout
+    # =========================================================================
+
     def _build_ui(self) -> None:
-        """Render the Settings interface."""
-        header_frame = ttk.Frame(self, style="TFrame")
-        header_frame.pack(fill="x", padx=SP_6, pady=(SP_6, SP_3))
+        self.configure(style="TFrame")
 
-        create_section_header(header_frame, "CONFIGURATION & SETTINGS").pack(anchor="w")
+        # Header Bar
+        header = ttk.Frame(self, style="TFrame")
+        header.pack(fill="x", padx=SP_6, pady=(SP_6, SP_2))
 
-        title_row = ttk.Frame(header_frame, style="TFrame")
-        title_row.pack(fill="x", pady=(SP_1, SP_2))
+        ttk.Label(
+            header,
+            text="SYSTEM / SETTINGS",
+            foreground=TEXT_MUTED,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_XS, "normal"),
+        ).pack(anchor="w")
+
+        title_row = ttk.Frame(header, style="TFrame")
+        title_row.pack(fill="x", pady=(SP_1, 0))
 
         ttk.Label(
             title_row,
-            text="Preferences & System Controls",
+            text="Workstation Preferences & Telemetry",
             foreground=TEXT_PRIMARY,
-            background=VOID,
-            font=FONT_HEADING,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_XL, "bold"),
         ).pack(side="left")
 
-        self.status_msg_label = ttk.Label(
+        self.status_msg = ttk.Label(
             title_row,
             text="",
             foreground=CYAN,
-            background=VOID,
-            font=FONT_SMALL,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_SM, "bold"),
         )
-        self.status_msg_label.pack(side="right", padx=SP_4)
-
-        create_divider(self, color=PLUM).pack(fill="x", padx=SP_6, pady=(0, SP_6))
-
-        # Main Settings Glass Panel
-        glass = create_glass_frame(self, width=860, height=480, border_color=CYAN, fill_color=DEEP)
-        glass.pack(fill="both", expand=True, padx=SP_6, pady=(0, SP_6))
-        inner = glass.inner_frame
+        self.status_msg.pack(side="right", padx=SP_4)
 
         ttk.Label(
-            inner,
-            text="Investigation Workspace & Telemetry Profiles",
-            foreground=TEXT_PRIMARY,
-            background=DEEP,
-            font=FONT_SUBHEADING,
-        ).pack(anchor="w", padx=SP_4, pady=(SP_4, SP_2))
-
-        ttk.Label(
-            inner,
+            header,
             text="Manage default investigator assignments, storage repositories, and event monitoring cadence.",
-            foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=FONT_BODY,
-        ).pack(anchor="w", padx=SP_4, pady=(0, SP_4))
+            foreground=TEXT_MUTED,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
+        ).pack(anchor="w", pady=(2, 0))
 
-        create_divider(inner, color=PLUM).pack(fill="x", padx=SP_4, pady=(0, SP_4))
+        create_divider(self, color=BORDER).pack(fill="x", padx=SP_6, pady=(SP_3, SP_4))
 
-        # Form Container
-        form_frame = ttk.Frame(inner, style="Card.TFrame")
-        form_frame.pack(fill="both", expand=True, padx=SP_4, pady=(0, SP_2))
+        # Two-column layout
+        body = ttk.Frame(self, style="TFrame")
+        body.pack(fill="both", expand=True, padx=SP_6, pady=(0, SP_6))
+        body.grid_rowconfigure(0, weight=1)
+        body.grid_columnconfigure(0, weight=1)
+        body.grid_columnconfigure(1, weight=1)
 
-        # 1. Investigator Name
-        r1 = ttk.Frame(form_frame, style="Card.TFrame")
-        r1.pack(fill="x", pady=SP_2)
-        ttk.Label(
-            r1,
-            text="Default Investigator:",
-            foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=FONT_BODY,
-            width=22,
-            anchor="w",
-        ).pack(side="left")
-        self.ent_investigator = tk.Entry(
-            r1,
-            textvariable=self.investigator_var,
-            bg=ABYSS,
-            fg=TEXT_PRIMARY,
-            insertbackground=CYAN,
-            relief="flat",
-            bd=0,
-            font=FONT_BODY,
-            highlightthickness=1,
-            highlightbackground=PLUM,
-            highlightcolor=CYAN,
+        # Left Panel: Investigation Workspace
+        left_col = ttk.Frame(body, style="TFrame")
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, SP_3))
+        self._build_workspace_panel(left_col)
+
+        # Right Panel: Real-time Telemetry
+        right_col = ttk.Frame(body, style="TFrame")
+        right_col.grid(row=0, column=1, sticky="nsew")
+        self._build_telemetry_panel(right_col)
+
+    # =========================================================================
+    # Left Panel: Investigation Workspace Preferences
+    # =========================================================================
+
+    def _build_workspace_panel(self, parent: ttk.Frame) -> None:
+        panel = create_soc_panel(parent, border_color=CYAN, bg=PANEL_BG)
+        panel.pack(fill="both", expand=True)
+        inner = panel.inner_frame
+
+        create_section_header(inner, "INVESTIGATION WORKSPACE PREFERENCES").pack(
+            anchor="w", padx=SP_4, pady=(SP_3, SP_1)
         )
-        self.ent_investigator.pack(side="left", fill="x", expand=True, ipady=SP_1)
-        bind_tooltip(self.ent_investigator, "Default examiner name auto-populated during case intake.")
-
-        # 2. Export / Evidence Directory
-        r2 = ttk.Frame(form_frame, style="Card.TFrame")
-        r2.pack(fill="x", pady=SP_2)
         ttk.Label(
-            r2,
-            text="Evidence Store Dir:",
-            foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=FONT_BODY,
-            width=22,
-            anchor="w",
-        ).pack(side="left")
-        self.ent_export_dir = tk.Entry(
-            r2,
-            textvariable=self.export_dir_var,
-            bg=ABYSS,
-            fg=TEXT_PRIMARY,
-            insertbackground=CYAN,
-            relief="flat",
-            bd=0,
-            font=FONT_BODY,
-            highlightthickness=1,
-            highlightbackground=PLUM,
-            highlightcolor=CYAN,
-        )
-        self.ent_export_dir.pack(side="left", fill="x", expand=True, ipady=SP_1)
-        bind_tooltip(self.ent_export_dir, "Target subdirectory for uploaded evidence and report artifacts.")
+            inner,
+            text="Default investigator profile and evidence storage configuration.",
+            foreground=TEXT_MUTED,
+            background=PANEL_BG,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
+        ).pack(anchor="w", padx=SP_4, pady=(0, SP_3))
 
-        # 3. Live Poll Interval
-        r3 = ttk.Frame(form_frame, style="Card.TFrame")
-        r3.pack(fill="x", pady=SP_2)
-        ttk.Label(
-            r3,
-            text="Live Poll Interval (ms):",
-            foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=FONT_BODY,
-            width=22,
-            anchor="w",
-        ).pack(side="left")
-        self.ent_poll = tk.Entry(
-            r3,
-            textvariable=self.poll_interval_var,
-            bg=ABYSS,
-            fg=TEXT_PRIMARY,
-            insertbackground=CYAN,
-            relief="flat",
-            bd=0,
-            font=FONT_BODY,
-            highlightthickness=1,
-            highlightbackground=PLUM,
-            highlightcolor=CYAN,
-        )
-        self.ent_poll.pack(side="left", fill="x", expand=True, ipady=SP_1)
-        bind_tooltip(self.ent_poll, "Background event polling cycle cadence in milliseconds (default 200).")
+        create_divider(inner, color=BORDER).pack(fill="x", padx=SP_4, pady=(0, SP_3))
 
-        # 4. Toast Duration
-        r4 = ttk.Frame(form_frame, style="Card.TFrame")
-        r4.pack(fill="x", pady=SP_2)
-        ttk.Label(
-            r4,
-            text="Toast Duration (ms):",
-            foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=FONT_BODY,
-            width=22,
-            anchor="w",
-        ).pack(side="left")
-        self.ent_toast = tk.Entry(
-            r4,
-            textvariable=self.toast_duration_var,
-            bg=ABYSS,
-            fg=TEXT_PRIMARY,
-            insertbackground=CYAN,
-            relief="flat",
-            bd=0,
-            font=FONT_BODY,
-            highlightthickness=1,
-            highlightbackground=PLUM,
-            highlightcolor=CYAN,
-        )
-        self.ent_toast.pack(side="left", fill="x", expand=True, ipady=SP_1)
-        bind_tooltip(self.ent_toast, "Persistence duration for bottom-right cybernetic toast cards.")
+        # Field: Default Investigator
+        self._build_field_row(inner, "DEFAULT INVESTIGATOR", self.investigator_var,
+                              "Default examiner name auto-populated during case intake.")
 
-        # 5. Auto Run Analysis Checkbox
-        r5 = ttk.Frame(form_frame, style="Card.TFrame")
-        r5.pack(fill="x", pady=SP_2)
-        ttk.Label(
-            r5,
-            text="Automation Rules:",
-            foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=FONT_BODY,
-            width=22,
-            anchor="w",
-        ).pack(side="left")
+        # Field: Evidence Store Directory
+        self._build_field_row(inner, "EVIDENCE STORE DIRECTORY", self.export_dir_var,
+                              "Target subdirectory for uploaded evidence and report artifacts.")
+
+        # Checkbox: Auto-Run Analysis
+        chk_frame = ttk.Frame(inner, style="Card.TFrame")
+        chk_frame._custom_bg = PANEL_BG
+        chk_frame.pack(fill="x", padx=SP_4, pady=SP_2)
 
         chk = tk.Checkbutton(
-            r5,
+            chk_frame,
             text="Automatically execute Forward Chaining inference upon evidence upload",
             variable=self.auto_run_var,
-            bg=DEEP,
+            bg=PANEL_BG,
             fg=TEXT_PRIMARY,
-            selectcolor=ABYSS,
-            activebackground=DEEP,
+            selectcolor=BG_SECONDARY,
+            activebackground=PANEL_BG,
             activeforeground=CYAN,
-            font=FONT_BODY,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
             bd=0,
             highlightthickness=0,
         )
-        chk.pack(side="left", anchor="w")
+        chk.pack(anchor="w")
         bind_tooltip(chk, "When enabled, triggers deterministic rule deduction immediately after evidence ingest.")
 
         # Action Buttons
         btn_row = ttk.Frame(inner, style="Card.TFrame")
-        btn_row.pack(anchor="w", padx=SP_4, pady=(SP_4, SP_2))
+        btn_row._custom_bg = PANEL_BG
+        btn_row.pack(anchor="w", padx=SP_4, pady=(SP_6, SP_3))
 
-        btn_save = create_neon_button(
+        btn_save = create_soc_button(
             btn_row,
-            text="SAVE PREFERENCES",
+            text="SAVE CONFIGURATION",
             variant="primary",
             command=self._save_settings,
+            bg=PANEL_BG,
         )
         btn_save.pack(side="left", padx=(0, SP_3))
 
-        btn_reset = create_neon_button(
+        btn_reset = create_soc_button(
             btn_row,
-            text="RESET TO DEFAULTS",
+            text="RESET DEFAULTS",
             variant="secondary",
             command=self._reset_defaults,
+            bg=PANEL_BG,
         )
-        btn_reset.pack(side="left", padx=(0, SP_3))
+        btn_reset.pack(side="left")
+
+    # =========================================================================
+    # Right Panel: Real-time Telemetry
+    # =========================================================================
+
+    def _build_telemetry_panel(self, parent: ttk.Frame) -> None:
+        panel = create_soc_panel(parent, border_color=BORDER_SECONDARY, bg=PANEL_BG)
+        panel.pack(fill="both", expand=True)
+        inner = panel.inner_frame
+
+        create_section_header(inner, "REAL-TIME TELEMETRY CONFIGURATION").pack(
+            anchor="w", padx=SP_4, pady=(SP_3, SP_1)
+        )
+        ttk.Label(
+            inner,
+            text="Event polling cadence and notification persistence controls.",
+            foreground=TEXT_MUTED,
+            background=PANEL_BG,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
+        ).pack(anchor="w", padx=SP_4, pady=(0, SP_3))
+
+        create_divider(inner, color=BORDER).pack(fill="x", padx=SP_4, pady=(0, SP_3))
+
+        # Field: Live Poll Interval
+        self._build_field_row(inner, "LIVE POLL INTERVAL (MS)", self.poll_interval_var,
+                              "Background event polling cycle cadence in milliseconds (default 200).")
+
+        # Field: Toast Duration
+        self._build_field_row(inner, "TOAST DISPLAY DURATION (MS)", self.toast_duration_var,
+                              "Persistence duration for toast notification cards (default 5000).")
+
+        # Current config display
+        info_box = tk.Frame(inner, bg=BG_SECONDARY, highlightthickness=1, highlightbackground=BORDER, bd=0)
+        info_box.pack(fill="x", padx=SP_4, pady=(SP_6, SP_3))
+
+        ttk.Label(
+            info_box,
+            text="ACTIVE CONFIGURATION FILE: config.json",
+            foreground=TEXT_MUTED,
+            background=BG_SECONDARY,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
+        ).pack(anchor="w", padx=SP_3, pady=(SP_2, SP_1))
+
+        self.lbl_config_info = ttk.Label(
+            info_box,
+            text="Configuration loaded from local workspace.",
+            foreground=TEXT_SECONDARY,
+            background=BG_SECONDARY,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
+        )
+        self.lbl_config_info.pack(anchor="w", padx=SP_3, pady=(0, SP_2))
+
+    # =========================================================================
+    # Shared field builder
+    # =========================================================================
+
+    def _build_field_row(
+        self, parent: tk.Misc, label_text: str, var: tk.StringVar, tooltip: str
+    ) -> tk.Entry:
+        ttk.Label(
+            parent,
+            text=label_text,
+            foreground=TEXT_SECONDARY,
+            background=PANEL_BG,
+            font=(FONT_FALLBACK, FS_XS, "bold"),
+        ).pack(anchor="w", padx=SP_4, pady=(0, 2))
+
+        entry = tk.Entry(
+            parent,
+            textvariable=var,
+            bg=BG_SECONDARY,
+            fg=TEXT_PRIMARY,
+            insertbackground=CYAN,
+            relief="flat",
+            bd=0,
+            font=(FONT_FALLBACK, FS_BASE, "normal"),
+            highlightthickness=1,
+            highlightbackground=BORDER,
+            highlightcolor=CYAN,
+        )
+        entry.pack(fill="x", padx=SP_4, pady=(0, SP_3), ipady=SP_1)
+        bind_tooltip(entry, tooltip)
+        return entry
+
+    # =========================================================================
+    # Logic
+    # =========================================================================
 
     def _save_settings(self) -> None:
-        """Persist settings to ConfigManager."""
+        """Persist settings to ConfigManager and config.json."""
         try:
             poll_ms = int(self.poll_interval_var.get().strip() or "200")
             toast_ms = int(self.toast_duration_var.get().strip() or "5000")
         except ValueError:
-            self.status_msg_label.config(text="ERROR: INTERVAL VALUES MUST BE NUMERIC", foreground=PINK)
+            self.status_msg.config(text="ERROR: INTERVAL VALUES MUST BE NUMERIC", foreground=CRITICAL)
             return
 
-        ConfigManager.set("default_investigator", self.investigator_var.get().strip())
-        ConfigManager.set("export_directory", self.export_dir_var.get().strip() or "uploads")
-        ConfigManager.set("live_poll_interval_ms", poll_ms)
-        ConfigManager.set("toast_duration_ms", toast_ms)
-        ConfigManager.set("auto_run_analysis", self.auto_run_var.get())
+        cfg = ConfigManager.as_dict()
+        cfg["default_investigator"] = self.investigator_var.get().strip()
+        cfg["export_directory"] = self.export_dir_var.get().strip() or "uploads"
+        cfg["live_poll_interval_ms"] = poll_ms
+        cfg["toast_duration_ms"] = toast_ms
+        cfg["auto_run_analysis"] = self.auto_run_var.get()
+        try:
+            ConfigManager._write(cfg)
+        except PermissionError:
+            import time
+            time.sleep(0.1)
+            ConfigManager._write(cfg)
 
-        self.status_msg_label.config(text="CONFIG PERSISTED TO CONFIG.JSON", foreground=CYAN)
+        self.status_msg.config(text="CONFIG PERSISTED TO CONFIG.JSON", foreground=CYAN)
         if self.shell and hasattr(self.shell, "set_status"):
             self.shell.set_status("CONFIG: PREFERENCES PERSISTED")
 
@@ -314,6 +334,6 @@ class SettingsFrame(ttk.Frame):
         """Reset ConfigManager to defaults and update fields."""
         ConfigManager.reset_to_defaults()
         self._load_current_settings()
-        self.status_msg_label.config(text="CONFIG RESET TO SYSTEM DEFAULTS", foreground=PEACH)
+        self.status_msg.config(text="CONFIG RESET TO SYSTEM DEFAULTS", foreground=HIGH)
         if self.shell and hasattr(self.shell, "set_status"):
             self.shell.set_status("CONFIG: RESTORED FACTORY DEFAULTS")

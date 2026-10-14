@@ -1,61 +1,64 @@
 # =============================================================================
 # gui/case_detail_frame.py
-# FORENSEQUENCE - Case Detail & Evidence Management Screen
+# FORENSEQUENCE - Evidence Artifact Repository & Ingestion Screen
 # =============================================================================
+
+from __future__ import annotations
 
 import hashlib
 import os
 import shutil
 import tkinter as tk
 from tkinter import filedialog
-import ttkbootstrap as ttk
 from typing import Optional, Callable
+import ttkbootstrap as ttk
 
 from gui.theme import (
-    VOID,
-    ABYSS,
-    DEEP,
-    STEEL,
+    APP_BG,
+    BG_SECONDARY,
+    PANEL_BG,
+    PANEL_ELEVATED,
+    BORDER,
+    BORDER_SECONDARY,
+    MINT,
     CYAN,
-    ICE,
-    PINK,
-    MAGENTA,
-    PURPLE,
-    PLUM,
-    PEACH,
+    CYAN_GLOW,
+    TEAL,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     TEXT_MUTED,
+    CRITICAL,
+    HIGH,
+    MEDIUM,
+    LOW,
     FONT_FALLBACK,
-    FONT_DISPLAY,
     FONT_MONO_FALLBACK,
-    FONT_HEADING,
-    FONT_SUBHEADING,
-    FONT_SECTION,
-    FONT_BODY,
-    FONT_SMALL,
-    FONT_MONO_SM,
-    FONT_MONO_BODY,
     FS_XS,
     FS_SM,
     FS_BASE,
     FS_MD,
     FS_LG,
     FS_XL,
-    FS_2XL,
     SP_1,
     SP_2,
     SP_3,
     SP_4,
     SP_6,
     SP_8,
-    RADIUS_SM,
-    RADIUS_MD,
-    create_glass_frame,
+    create_soc_panel,
+    create_soc_button,
+    create_soc_badge,
+    create_soc_entry,
     create_section_header,
-    create_badge,
     create_divider,
+    # Backward compatibility aliases
+    VOID,
+    ABYSS,
+    DEEP,
+    STEEL,
+    create_glass_frame,
     create_neon_button,
+    create_badge,
     create_styled_entry,
 )
 
@@ -103,7 +106,7 @@ def calculate_sha256(file_path: str) -> str:
 
 class CaseDetailFrame(ttk.Frame):
     """
-    Case Detail & Evidence Management screen.
+    Case Detail & Evidence Artifact Repository screen.
     Displays granular case metadata, provides an evidence ingestion interface
     with automated SHA-256 hashing, and maintains an interactive inventory.
     """
@@ -147,30 +150,41 @@ class CaseDetailFrame(ttk.Frame):
         """Construct the visual hierarchy."""
         self.configure(style="TFrame")
 
-        # Top section bar
+        # Header Bar
         self.header_bar = ttk.Frame(self, style="TFrame")
         self.header_bar.pack(fill="x", padx=SP_6, pady=(SP_6, SP_2))
 
-        header_left = ttk.Frame(self.header_bar, style="TFrame")
-        header_left.pack(side="left", fill="y")
+        ttk.Label(
+            self.header_bar,
+            text="WORKSPACE / EVIDENCE EXPLORER",
+            foreground=TEXT_MUTED,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_XS, "normal"),
+        ).pack(anchor="w")
 
-        create_section_header(header_left, "INVESTIGATION EVIDENCE MANAGEMENT").pack(anchor="w")
-
-        title_row = ttk.Frame(header_left, style="TFrame")
-        title_row.pack(anchor="w", pady=(SP_1, 0))
+        title_row = ttk.Frame(self.header_bar, style="TFrame")
+        title_row.pack(fill="x", pady=(SP_1, 0))
 
         ttk.Label(
             title_row,
-            text="Chain of Custody & Evidence Explorer",
+            text="Evidence Artifact Repository",
             foreground=TEXT_PRIMARY,
-            background=VOID,
-            font=FONT_HEADING,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_XL, "bold"),
         ).pack(side="left")
 
-        badge = create_badge(title_row, "SHA-256 VERIFIED", PURPLE)
+        badge = create_soc_badge(title_row, "SHA-256 INTEGRITY GUARANTEED", color=CYAN, bg=APP_BG)
         badge.pack(side="left", padx=(SP_4, 0))
 
-        create_divider(self, color=PLUM).pack(fill="x", padx=SP_6, pady=(SP_2, SP_4))
+        ttk.Label(
+            self.header_bar,
+            text="Cryptographic SHA-256 chain of custody validation and forensic evidence ingestion.",
+            foreground=TEXT_MUTED,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
+        ).pack(anchor="w", pady=(2, 0))
+
+        create_divider(self, color=BORDER).pack(fill="x", padx=SP_6, pady=(SP_3, SP_4))
 
         # Dynamic Content Container (swapped between Empty State and Case Detail)
         self.main_content = ttk.Frame(self, style="TFrame")
@@ -194,19 +208,19 @@ class CaseDetailFrame(ttk.Frame):
         self._render_active_case_layout(case)
 
     def _render_no_case_state(self) -> None:
-        """Display placeholder glass card when no case context is active."""
+        """Display placeholder card when no case context is active."""
         center_box = ttk.Frame(self.main_content, style="TFrame")
         center_box.pack(expand=True, fill="both")
 
-        glass = create_glass_frame(
+        panel = create_soc_panel(
             center_box,
-            width=800,
+            width=760,
             height=280,
-            border_color=STEEL,
-            fill_color=DEEP,
+            border_color=BORDER,
+            bg=PANEL_BG,
         )
-        glass.pack(anchor="center", pady=SP_8)
-        inner = glass.inner_frame
+        panel.pack(anchor="center", pady=SP_8)
+        inner = panel.inner_frame
 
         create_section_header(inner, "NO ACTIVE CASE CONTEXT").pack(
             anchor="w", padx=SP_6, pady=(SP_6, SP_2)
@@ -216,71 +230,71 @@ class CaseDetailFrame(ttk.Frame):
             inner,
             text="No Investigation Case Selected",
             foreground=TEXT_PRIMARY,
-            background=DEEP,
-            font=FONT_SUBHEADING,
+            background=PANEL_BG,
+            font=(FONT_FALLBACK, FS_LG, "bold"),
         ).pack(anchor="w", padx=SP_6, pady=(0, SP_2))
 
         ttk.Label(
             inner,
-            text="Select an investigation from the Dashboard or Case Archive to view,\n"
-                 "catalog, and compute SHA-256 integrity hashes for evidence artifacts.",
-            foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=FONT_BODY,
+            text="Select an investigation from the Dashboard or Case Intake Archive to view,\n"
+                 "catalog, and compute SHA-256 integrity hashes for forensic evidence artifacts.",
+            foreground=TEXT_MUTED,
+            background=PANEL_BG,
+            font=(FONT_FALLBACK, FS_BASE, "normal"),
             justify="left",
         ).pack(anchor="w", padx=SP_6, pady=(0, SP_6))
 
         btn_box = ttk.Frame(inner, style="Card.TFrame")
-        btn_box._custom_bg = DEEP
-        btn_box.pack(anchor="w", padx=SP_6)
+        btn_box._custom_bg = PANEL_BG
+        btn_box.pack(anchor="w", padx=SP_6, pady=(0, SP_4))
 
-        btn_goto_archive = create_neon_button(
+        btn_goto_archive = create_soc_button(
             btn_box,
             text="[GOTO CASE ARCHIVE]",
-            command=lambda: self._navigate("Cases"),
+            command=lambda: self._navigate("Case Investigation"),
             variant="primary",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         btn_goto_archive.pack(side="left", padx=(0, SP_3))
 
-        btn_dashboard = create_neon_button(
+        btn_dashboard = create_soc_button(
             btn_box,
             text="[VIEW DASHBOARD]",
             command=lambda: self._navigate("Dashboard"),
             variant="secondary",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         btn_dashboard.pack(side="left")
 
     def _render_active_case_layout(self, case: dict) -> None:
         """Render the complete investigation header and two-column evidence workspace."""
-        # 1. Top Case Header Card (Glass Panel)
-        header_card = create_glass_frame(
+        # 1. Top Case Header Card (SOC Panel)
+        header_card = create_soc_panel(
             self.main_content,
             width=960,
-            height=110,
-            border_color=PURPLE,
-            fill_color=DEEP,
+            height=100,
+            border_color=BORDER,
+            bg=PANEL_BG,
         )
         header_card.pack(fill="x", pady=(0, SP_3))
         inner_h = header_card.inner_frame
 
         # Left Info Block: Badges, Name, Investigator, Timestamp
         left_meta = ttk.Frame(inner_h, style="Card.TFrame")
-        left_meta._custom_bg = DEEP
+        left_meta._custom_bg = PANEL_BG
         left_meta.pack(side="left", fill="both", expand=True, padx=SP_4, pady=SP_2)
 
         meta_top = ttk.Frame(left_meta, style="Card.TFrame")
-        meta_top._custom_bg = DEEP
+        meta_top._custom_bg = PANEL_BG
         meta_top.pack(fill="x", pady=(0, 2))
 
         case_num = case.get("case_number", "CASE-UNKNOWN")
-        badge_num = create_badge(meta_top, case_num, CYAN, bg=DEEP)
+        badge_num = create_soc_badge(meta_top, case_num, color=CYAN, bg=PANEL_BG)
         badge_num.pack(side="left", padx=(0, SP_2))
 
         status_str = str(case.get("status", "OPEN")).upper()
-        status_color = CYAN if status_str == "OPEN" else (PEACH if status_str == "INVESTIGATING" else TEXT_MUTED)
-        badge_st = create_badge(meta_top, status_str, status_color, bg=DEEP)
+        status_color = CYAN if status_str == "OPEN" else (HIGH if status_str == "INVESTIGATING" else TEXT_MUTED)
+        badge_st = create_soc_badge(meta_top, status_str, color=status_color, bg=PANEL_BG)
         badge_st.pack(side="left", padx=(0, SP_3))
 
         created_at = str(case.get("created_at", ""))
@@ -288,8 +302,8 @@ class CaseDetailFrame(ttk.Frame):
             meta_top,
             text=f"INITIALIZED: {created_at}",
             foreground=TEXT_MUTED,
-            background=DEEP,
-            font=FONT_MONO_SM,
+            background=PANEL_BG,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
         ).pack(side="left")
 
         # Case Name & Investigator
@@ -298,56 +312,56 @@ class CaseDetailFrame(ttk.Frame):
             left_meta,
             text=case_name,
             foreground=TEXT_PRIMARY,
-            background=DEEP,
+            background=PANEL_BG,
             font=(FONT_FALLBACK, FS_MD, "bold"),
             anchor="w",
         ).pack(fill="x", pady=(0, 1))
 
         inv_text = f"Investigator: {case.get('investigator', 'Unassigned')}"
         desc_text = str(case.get("description", "") or "").strip()
-        sub_text = f"{inv_text}  |  {desc_text[:60]}..." if desc_text else inv_text
+        sub_text = f"{inv_text}  |  {desc_text[:70]}..." if desc_text else inv_text
         ttk.Label(
             left_meta,
             text=sub_text,
             foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=FONT_SMALL,
+            background=PANEL_BG,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
             anchor="w",
         ).pack(fill="x")
 
         # Right Action Bar: Quick Nav Buttons
         right_actions = ttk.Frame(inner_h, style="Card.TFrame")
-        right_actions._custom_bg = DEEP
-        right_actions.pack(side="right", fill="y", padx=SP_4, pady=SP_3)
+        right_actions._custom_bg = PANEL_BG
+        right_actions.pack(side="right", fill="y", padx=SP_4, pady=SP_2)
 
-        btn_ai = create_neon_button(
+        btn_ai = create_soc_button(
             right_actions,
             text="[RUN AI ANALYSIS]",
-            command=lambda: self._navigate("Analysis"),
+            command=lambda: self._navigate("AI Analysis"),
             variant="primary",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
-        btn_ai.pack(side="top", fill="x", pady=(0, 3))
+        btn_ai.pack(side="top", fill="x", pady=(0, 4))
 
         sub_btns = ttk.Frame(right_actions, style="Card.TFrame")
-        sub_btns._custom_bg = DEEP
+        sub_btns._custom_bg = PANEL_BG
         sub_btns.pack(side="top", fill="x")
 
-        btn_monitor = create_neon_button(
+        btn_monitor = create_soc_button(
             sub_btns,
             text="[LIVE MONITOR]",
-            command=lambda: self._navigate("Live Monitor"),
+            command=lambda: self._navigate("Real-time Monitor"),
             variant="secondary",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
-        btn_monitor.pack(side="left", padx=(0, 3))
+        btn_monitor.pack(side="left", padx=(0, 4))
 
-        btn_back = create_neon_button(
+        btn_back = create_soc_button(
             sub_btns,
             text="[BACK TO CASES]",
-            command=lambda: self._navigate("Cases"),
+            command=lambda: self._navigate("Case Investigation"),
             variant="ghost",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         btn_back.pack(side="left")
 
@@ -378,15 +392,15 @@ class CaseDetailFrame(ttk.Frame):
 
     def _build_import_panel(self, parent_col: ttk.Frame) -> None:
         """Render the evidence upload and hashing form."""
-        glass = create_glass_frame(
+        panel = create_soc_panel(
             parent_col,
             width=420,
             height=490,
-            border_color=CYAN,
-            fill_color=DEEP,
+            border_color=BORDER,
+            bg=PANEL_BG,
         )
-        glass.pack(fill="both", expand=True)
-        inner = glass.inner_frame
+        panel.pack(fill="both", expand=True)
+        inner = panel.inner_frame
 
         create_section_header(inner, "IMPORT EVIDENCE ARTIFACT").pack(
             anchor="w", padx=SP_4, pady=(SP_3, SP_1)
@@ -396,8 +410,8 @@ class CaseDetailFrame(ttk.Frame):
             inner,
             text="Select forensic artifacts for SHA-256 integrity validation and ingestion.",
             foreground=TEXT_MUTED,
-            background=DEEP,
-            font=FONT_SMALL,
+            background=PANEL_BG,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
             wraplength=380,
             justify="left",
         ).pack(anchor="w", padx=SP_4, pady=(0, SP_3))
@@ -407,88 +421,92 @@ class CaseDetailFrame(ttk.Frame):
             inner,
             text="TARGET ARTIFACT FILE *",
             foreground=TEXT_SECONDARY,
-            background=DEEP,
+            background=PANEL_BG,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(anchor="w", padx=SP_4, pady=(0, 2))
 
         picker_box = ttk.Frame(inner, style="Card.TFrame")
-        picker_box._custom_bg = DEEP
+        picker_box._custom_bg = PANEL_BG
         picker_box.pack(fill="x", padx=SP_4, pady=(0, SP_3))
 
-        self.entry_path = create_styled_entry(picker_box, placeholder="No file selected")
+        self.entry_path = create_soc_entry(picker_box, placeholder="No file selected")
         self.entry_path.config(state="readonly")
         self.entry_path.pack(side="left", fill="x", expand=True, ipady=3, padx=(0, SP_2))
 
-        btn_browse_file = create_neon_button(
+        btn_browse_file = create_soc_button(
             picker_box,
-            text="[FILE]",
+            text="[BROWSE FILE]",
             command=self._handle_browse_file,
             variant="secondary",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         btn_browse_file.pack(side="right", padx=(2, 0))
 
-        btn_browse_folder = create_neon_button(
+        btn_browse_folder = create_soc_button(
             picker_box,
-            text="[FOLDER]",
+            text="[BROWSE FOLDER]",
             command=self._handle_browse_folder,
             variant="secondary",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         btn_browse_folder.pack(side="right")
 
         # Quick Load Sample Evidence Row
         sample_row = ttk.Frame(inner, style="Card.TFrame")
-        sample_row._custom_bg = DEEP
+        sample_row._custom_bg = PANEL_BG
         sample_row.pack(fill="x", padx=SP_4, pady=(0, SP_2))
 
         ttk.Label(
             sample_row,
-            text="TEST SAMPLE EVIDENCE:",
+            text="QUICK LOAD SAMPLE:",
             foreground=TEXT_MUTED,
-            background=DEEP,
+            background=PANEL_BG,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(side="left", padx=(0, SP_1))
 
-        for s_lbl, s_path, s_cat, s_col in [
+        sample_specs = [
             ("LOG", "system.log", "log", CYAN),
-            ("FOLDER", "evidence_folder", "file", PEACH),
-            ("BROWSER", "browser_history.csv", "browser", PURPLE),
-            ("EMAIL", "emails.csv", "email", PINK),
-        ]:
+            ("FOLDER", "evidence_folder", "file", HIGH),
+            ("BROWSER", "browser_history.csv", "browser", TEAL),
+            ("EMAIL", "emails.csv", "email", CRITICAL),
+        ]
+
+        for s_lbl, s_path, s_cat, s_col in sample_specs:
             btn_s = tk.Button(
                 sample_row,
                 text=f"[{s_lbl}]",
                 font=(FONT_FALLBACK, FS_XS, "bold"),
-                bd=1,
-                relief="solid",
-                bg=ABYSS,
+                bd=0,
+                relief="flat",
+                bg=PANEL_ELEVATED,
                 fg=s_col,
+                activebackground=PANEL_BG,
+                activeforeground=s_col,
                 highlightthickness=1,
-                highlightbackground=STEEL,
+                highlightbackground=BORDER,
                 cursor="hand2",
                 command=lambda r=s_path, c=s_cat: self._load_sample_evidence(r, c),
             )
-            btn_s.pack(side="left", padx=2)
+            btn_s.pack(side="left", padx=2, ipadx=4, ipady=2)
 
-        # Evidence Type Selector
+        # Evidence Category Selector
         ttk.Label(
             inner,
             text="EVIDENCE CATEGORY",
             foreground=TEXT_SECONDARY,
-            background=DEEP,
+            background=PANEL_BG,
             font=(FONT_FALLBACK, FS_XS, "bold"),
-        ).pack(anchor="w", padx=SP_4, pady=(0, 2))
+        ).pack(anchor="w", padx=SP_4, pady=(SP_2, 2))
 
         type_box = ttk.Frame(inner, style="Card.TFrame")
-        type_box._custom_bg = DEEP
+        type_box._custom_bg = PANEL_BG
         type_box.pack(fill="x", padx=SP_4, pady=(0, SP_3))
 
         type_specs = [
             ("log", "LOG", CYAN),
-            ("file", "FILE", PEACH),
-            ("browser", "BROWSER", PURPLE),
-            ("email", "EMAIL", PINK),
+            ("file", "FILE", HIGH),
+            ("browser", "BROWSER", TEAL),
+            ("email", "EMAIL", CRITICAL),
         ]
 
         self.type_buttons = {}
@@ -502,31 +520,31 @@ class CaseDetailFrame(ttk.Frame):
                 cursor="hand2",
                 command=lambda cid=cat_id: self._select_evidence_type(cid),
             )
-            btn.pack(side="left", padx=(0, 4), ipadx=6, ipady=3)
+            btn.pack(side="left", padx=(0, 4), ipadx=8, ipady=3)
             self.type_buttons[cat_id] = (btn, cat_color)
 
         self._select_evidence_type("log")
 
-        # Action Button: [IMPORT & HASH EVIDENCE]
+        # Action Button: [IMPORT & HASH ARTIFACT]
         btn_action_box = ttk.Frame(inner, style="Card.TFrame")
-        btn_action_box._custom_bg = DEEP
+        btn_action_box._custom_bg = PANEL_BG
         btn_action_box.pack(anchor="w", padx=SP_4, pady=(SP_1, SP_3))
 
-        self.btn_import = create_neon_button(
+        self.btn_import = create_soc_button(
             btn_action_box,
-            text="[IMPORT & HASH EVIDENCE]",
+            text="[IMPORT & HASH ARTIFACT]",
             command=self._handle_import_submit,
             variant="primary",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         self.btn_import.pack(side="left")
 
         # Status & SHA-256 Result Box
         self.status_box = tk.Frame(
             inner,
-            bg=ABYSS,
+            bg=PANEL_ELEVATED,
             highlightthickness=1,
-            highlightbackground=PLUM,
+            highlightbackground=BORDER,
             bd=0,
         )
         self.status_box.pack(fill="x", padx=SP_4, pady=(SP_1, SP_2))
@@ -535,8 +553,8 @@ class CaseDetailFrame(ttk.Frame):
             self.status_box,
             text="STATUS: READY FOR INGESTION",
             foreground=TEXT_MUTED,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            background=PANEL_ELEVATED,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
             anchor="w",
         )
         self.lbl_import_status.pack(fill="x", padx=SP_3, pady=(SP_2, 2))
@@ -544,9 +562,9 @@ class CaseDetailFrame(ttk.Frame):
         self.lbl_hash_display = ttk.Label(
             self.status_box,
             text="SHA-256: --",
-            foreground=TEXT_SECONDARY,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            foreground=TEXT_MUTED,
+            background=PANEL_ELEVATED,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
             wraplength=370,
             anchor="w",
         )
@@ -558,21 +576,21 @@ class CaseDetailFrame(ttk.Frame):
         for cat_id, (btn, color) in self.type_buttons.items():
             if cat_id == type_id:
                 btn.config(
-                    bg=DEEP,
+                    bg=PANEL_BG,
                     fg=color,
-                    activebackground=DEEP,
+                    activebackground=PANEL_BG,
                     activeforeground=color,
                     highlightthickness=1,
                     highlightbackground=color,
                 )
             else:
                 btn.config(
-                    bg=ABYSS,
+                    bg=PANEL_ELEVATED,
                     fg=TEXT_MUTED,
-                    activebackground=ABYSS,
+                    activebackground=PANEL_ELEVATED,
                     activeforeground=TEXT_SECONDARY,
                     highlightthickness=1,
-                    highlightbackground=PLUM,
+                    highlightbackground=BORDER,
                 )
 
     def _detect_evidence_type(self, path_or_name: str) -> str:
@@ -627,7 +645,7 @@ class CaseDetailFrame(ttk.Frame):
             self.lbl_hash_display.config(text="SHA-256: [PENDING VERIFICATION]", foreground=TEXT_MUTED)
 
     def _load_sample_evidence(self, rel_path: str, cat: str) -> None:
-        """Quickly load one of the 4 built-in test evidence artifacts into the form."""
+        """Quickly load one of the built-in test evidence artifacts into the form."""
         full_p = os.path.join(PROJECT_ROOT, "sample_evidence", rel_path)
         if os.path.exists(full_p):
             self.selected_file_path = full_p
@@ -649,47 +667,47 @@ class CaseDetailFrame(ttk.Frame):
 
     def _build_inventory_panel(self, parent_col: ttk.Frame) -> None:
         """Render the scrollable evidence repository list."""
-        glass = create_glass_frame(
+        panel = create_soc_panel(
             parent_col,
             width=540,
             height=490,
-            border_color=STEEL,
-            fill_color=DEEP,
+            border_color=BORDER,
+            bg=PANEL_BG,
         )
-        glass.pack(fill="both", expand=True)
-        inner = glass.inner_frame
+        panel.pack(fill="both", expand=True)
+        inner = panel.inner_frame
 
         # Header Row
         inv_hdr = ttk.Frame(inner, style="Card.TFrame")
-        inv_hdr._custom_bg = DEEP
+        inv_hdr._custom_bg = PANEL_BG
         inv_hdr.pack(fill="x", padx=SP_4, pady=(SP_3, SP_1))
 
-        create_section_header(inv_hdr, "EVIDENCE INVENTORY").pack(side="left")
+        create_section_header(inv_hdr, "EVIDENCE ARTIFACT INVENTORY").pack(side="left")
 
         self.lbl_inv_count = ttk.Label(
             inv_hdr,
             text="0 ARTIFACTS",
             foreground=TEXT_MUTED,
-            background=DEEP,
-            font=FONT_MONO_SM,
+            background=PANEL_BG,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
         )
         self.lbl_inv_count.pack(side="right")
 
-        create_divider(inner, color=PLUM).pack(fill="x", padx=SP_4, pady=(SP_1, SP_2))
+        create_divider(inner, color=BORDER).pack(fill="x", padx=SP_4, pady=(SP_1, SP_2))
 
         # Scrollable Canvas
         scroll_wrapper = ttk.Frame(inner, style="Card.TFrame")
-        scroll_wrapper._custom_bg = DEEP
+        scroll_wrapper._custom_bg = PANEL_BG
         scroll_wrapper.pack(fill="both", expand=True, padx=SP_2, pady=(0, SP_2))
 
-        self.inv_canvas = tk.Canvas(scroll_wrapper, bg=DEEP, highlightthickness=0, bd=0)
+        self.inv_canvas = tk.Canvas(scroll_wrapper, bg=PANEL_BG, highlightthickness=0, bd=0)
         self.inv_scrollbar = ttk.Scrollbar(
             scroll_wrapper, orient="vertical", command=self.inv_canvas.yview
         )
         self.inv_canvas.configure(yscrollcommand=self.inv_scrollbar.set)
 
         self.inv_content = ttk.Frame(self.inv_canvas, style="Card.TFrame")
-        self.inv_content._custom_bg = DEEP
+        self.inv_content._custom_bg = PANEL_BG
         self.inv_window_id = self.inv_canvas.create_window(
             (0, 0), window=self.inv_content, anchor="nw"
         )
@@ -734,14 +752,14 @@ class CaseDetailFrame(ttk.Frame):
 
         if not evidence_items:
             empty_box = ttk.Frame(self.inv_content, style="Card.TFrame")
-            empty_box._custom_bg = DEEP
+            empty_box._custom_bg = PANEL_BG
             empty_box.pack(fill="x", padx=SP_4, pady=SP_6)
 
             ttk.Label(
                 empty_box,
                 text="NO EVIDENCE IMPORTED",
                 foreground=TEXT_SECONDARY,
-                background=DEEP,
+                background=PANEL_BG,
                 font=(FONT_FALLBACK, FS_MD, "bold"),
             ).pack(anchor="w", pady=(0, SP_1))
 
@@ -749,8 +767,8 @@ class CaseDetailFrame(ttk.Frame):
                 empty_box,
                 text="No evidence imported for this case. Use the Import Evidence form to upload logs, files, browser CSVs, or emails.",
                 foreground=TEXT_MUTED,
-                background=DEEP,
-                font=FONT_BODY,
+                background=PANEL_BG,
+                font=(FONT_FALLBACK, FS_BASE, "normal"),
                 wraplength=480,
                 justify="left",
             ).pack(anchor="w")
@@ -763,22 +781,22 @@ class CaseDetailFrame(ttk.Frame):
         """Render a single evidence artifact item card."""
         card = tk.Frame(
             self.inv_content,
-            bg=ABYSS,
+            bg=PANEL_ELEVATED,
             highlightthickness=1,
-            highlightbackground=STEEL,
+            highlightbackground=BORDER,
             bd=0,
         )
         card.pack(fill="x", padx=SP_2, pady=SP_2)
 
         # Header Line: Type Badge + Uploaded Timestamp
-        top_line = tk.Frame(card, bg=ABYSS)
+        top_line = tk.Frame(card, bg=PANEL_ELEVATED)
         top_line.pack(fill="x", padx=SP_3, pady=(SP_2, 2))
 
         ev_type = str(item.get("evidence_type", "FILE")).upper()
-        type_colors = {"LOG": CYAN, "FILE": PEACH, "BROWSER": PURPLE, "EMAIL": PINK}
+        type_colors = {"LOG": CYAN, "FILE": HIGH, "BROWSER": TEAL, "EMAIL": CRITICAL}
         type_color = type_colors.get(ev_type, CYAN)
 
-        badge_type = create_badge(top_line, ev_type, type_color, bg=ABYSS)
+        badge_type = create_soc_badge(top_line, ev_type, color=type_color, bg=PANEL_ELEVATED)
         badge_type.pack(side="left", padx=(0, SP_2))
 
         uploaded_at = str(item.get("uploaded_at", ""))
@@ -786,8 +804,8 @@ class CaseDetailFrame(ttk.Frame):
             top_line,
             text=uploaded_at,
             foreground=TEXT_MUTED,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            background=PANEL_ELEVATED,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
         ).pack(side="right")
 
         # Filename
@@ -796,47 +814,47 @@ class CaseDetailFrame(ttk.Frame):
             card,
             text=filename,
             foreground=TEXT_PRIMARY,
-            background=ABYSS,
+            background=PANEL_ELEVATED,
             font=(FONT_FALLBACK, FS_BASE, "bold"),
             anchor="w",
         ).pack(fill="x", padx=SP_3, pady=(0, 1))
 
         # Stored Path (truncated if long)
         file_path = str(item.get("file_path", ""))
-        display_path = file_path if len(file_path) <= 60 else "..." + file_path[-57:]
+        display_path = file_path if len(file_path) <= 65 else "..." + file_path[-62:]
         ttk.Label(
             card,
             text=f"PATH: {display_path}",
             foreground=TEXT_SECONDARY,
-            background=ABYSS,
-            font=FONT_SMALL,
+            background=PANEL_ELEVATED,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
             anchor="w",
         ).pack(fill="x", padx=SP_3, pady=(0, 2))
 
         # SHA-256 Hash Box + Copy Button
         hash_val = str(item.get("file_hash", ""))
-        hash_box = tk.Frame(card, bg=DEEP)
+        hash_box = tk.Frame(card, bg=PANEL_BG)
         hash_box.pack(fill="x", padx=SP_3, pady=(0, SP_2))
 
         ttk.Label(
             hash_box,
             text=f"SHA-256: {hash_val}",
-            foreground=ICE,
-            background=DEEP,
-            font=FONT_MONO_SM,
+            foreground=MINT,
+            background=PANEL_BG,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
             anchor="w",
-        ).pack(side="left", fill="x", expand=True, padx=SP_2, pady=2)
+        ).pack(side="left", fill="x", expand=True, padx=SP_2, pady=3)
 
         def _copy_hash():
             self.clipboard_clear()
             self.clipboard_append(hash_val)
 
-        btn_copy = create_neon_button(
+        btn_copy = create_soc_button(
             hash_box,
-            text="[COPY]",
+            text="[COPY HASH]",
             command=_copy_hash,
             variant="ghost",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         btn_copy.pack(side="right", padx=(0, SP_1), pady=1)
 
@@ -859,8 +877,8 @@ class CaseDetailFrame(ttk.Frame):
             return
 
         self._is_importing = True
-        self.lbl_import_status.config(text="COMPUTING SHA-256 HASH...", foreground=PINK)
-        self.status_box.config(highlightbackground=PINK)
+        self.lbl_import_status.config(text="COMPUTING SHA-256 HASH...", foreground=HIGH)
+        self.status_box.config(highlightbackground=HIGH)
         self.update_idletasks()
 
         try:
@@ -891,7 +909,7 @@ class CaseDetailFrame(ttk.Frame):
             self.lbl_import_status.config(
                 text=f"REGISTERED #{evidence_id}: {filename}", foreground=CYAN
             )
-            self.lbl_hash_display.config(text=f"SHA-256: {file_hash}", foreground=ICE)
+            self.lbl_hash_display.config(text=f"SHA-256: {file_hash}", foreground=MINT)
             self.status_box.config(highlightbackground=CYAN)
 
             # Clear entry and refresh list
@@ -908,10 +926,10 @@ class CaseDetailFrame(ttk.Frame):
             self._is_importing = False
 
     def _show_import_error(self, message: str) -> None:
-        """Display an ingestion error in pink."""
-        self.lbl_import_status.config(text=f"ERROR: {message}", foreground=PINK)
+        """Display an ingestion error in critical color."""
+        self.lbl_import_status.config(text=f"ERROR: {message}", foreground=CRITICAL)
         self.lbl_hash_display.config(text="SHA-256: --", foreground=TEXT_MUTED)
-        self.status_box.config(highlightbackground=PINK)
+        self.status_box.config(highlightbackground=CRITICAL)
 
     # -------------------------------------------------------------------------
     # Navigation

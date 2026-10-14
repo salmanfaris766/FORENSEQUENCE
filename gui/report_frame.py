@@ -3,6 +3,8 @@
 # FORENSEQUENCE - Forensic Investigation Report Screen & In-App Document Viewer
 # =============================================================================
 
+from __future__ import annotations
+
 import os
 import sys
 import subprocess
@@ -13,52 +15,60 @@ import tkinter as tk
 import ttkbootstrap as ttk
 
 from gui.theme import (
-    VOID,
-    ABYSS,
-    DEEP,
-    STEEL,
+    APP_BG,
+    BG_SECONDARY,
+    PANEL_BG,
+    PANEL_ELEVATED,
+    PANEL_HOVER,
+    BORDER,
+    BORDER_SECONDARY,
+    MINT,
     CYAN,
-    ICE,
-    PINK,
-    MAGENTA,
-    PURPLE,
-    PLUM,
-    PEACH,
+    CYAN_GLOW,
+    TEAL,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     TEXT_MUTED,
+    CRITICAL,
+    HIGH,
+    MEDIUM,
+    LOW,
     FONT_FALLBACK,
-    FONT_DISPLAY,
     FONT_MONO_FALLBACK,
     FONT_HEADING,
     FONT_SUBHEADING,
     FONT_SECTION,
     FONT_BODY,
     FONT_SMALL,
-    FONT_MONO_SM,
     FONT_MONO_BODY,
+    FONT_MONO_SM,
     FS_XS,
     FS_SM,
     FS_BASE,
     FS_MD,
     FS_LG,
     FS_XL,
-    FS_2XL,
     SP_1,
     SP_2,
     SP_3,
     SP_4,
     SP_6,
     SP_8,
-    RADIUS_SM,
-    RADIUS_MD,
-    create_glass_frame,
+    create_soc_panel,
+    create_soc_button,
+    create_soc_badge,
     create_section_header,
-    create_badge,
     create_divider,
-    create_neon_button,
     risk_color,
     risk_label,
+    # Backward compatibility aliases
+    VOID,
+    ABYSS,
+    DEEP,
+    STEEL,
+    create_glass_frame,
+    create_neon_button,
+    create_badge,
 )
 
 from database import (
@@ -124,110 +134,147 @@ class ReportFrame(ttk.Frame):
         self.configure(style="TFrame")
 
         # ---------------------------------------------------------------------
-        # 1. Top Control Bar (Glass Panel)
+        # 1. Header Bar
         # ---------------------------------------------------------------------
-        header_card = create_glass_frame(
-            self, width=960, height=86, border_color=PURPLE, fill_color=DEEP
+        self.header_bar = ttk.Frame(self, style="TFrame")
+        self.header_bar.pack(fill="x", padx=SP_6, pady=(SP_6, SP_2))
+
+        ttk.Label(
+            self.header_bar,
+            text="OPERATIONS / REPORTS",
+            foreground=TEXT_MUTED,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_XS, "normal"),
+        ).pack(anchor="w")
+
+        title_row = ttk.Frame(self.header_bar, style="TFrame")
+        title_row.pack(fill="x", pady=(SP_1, 0))
+
+        ttk.Label(
+            title_row,
+            text="Forensic Investigation Report Generator",
+            foreground=TEXT_PRIMARY,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_XL, "bold"),
+        ).pack(side="left")
+
+        badge = create_soc_badge(title_row, "COURT-ADMISSIBLE DOSSIER", color=CYAN, bg=APP_BG)
+        badge.pack(side="left", padx=(SP_4, 0))
+
+        ttk.Label(
+            self.header_bar,
+            text="Compile executive risk metrics, cryptographic evidence chains, and export formal PDF reports.",
+            foreground=TEXT_MUTED,
+            background=APP_BG,
+            font=(FONT_FALLBACK, FS_SM, "normal"),
+        ).pack(anchor="w", pady=(2, 0))
+
+        create_divider(self, color=BORDER).pack(fill="x", padx=SP_6, pady=(SP_3, SP_3))
+
+        # ---------------------------------------------------------------------
+        # 2. Top Control Bar (SOC Panel)
+        # ---------------------------------------------------------------------
+        ctrl_card = create_soc_panel(
+            self, width=960, height=88, border_color=BORDER, bg=PANEL_BG
         )
-        header_card.pack(fill="x", padx=SP_6, pady=(SP_6, SP_2))
-        inner_h = header_card.inner_frame
+        ctrl_card.pack(fill="x", padx=SP_6, pady=(0, SP_2))
+        inner_h = ctrl_card.inner_frame
 
         # Left block: Title + Case Badge + Document Badge
         left_h = ttk.Frame(inner_h, style="Card.TFrame")
-        left_h._custom_bg = DEEP
+        left_h._custom_bg = PANEL_BG
         left_h.pack(side="left", fill="both", expand=True, padx=SP_4, pady=SP_2)
 
-        create_section_header(left_h, "FORENSIC REPORT GENERATOR").pack(anchor="w")
+        create_section_header(left_h, "ACTIVE REPORT GENERATION CONTROLS").pack(anchor="w")
 
         info_row = ttk.Frame(left_h, style="Card.TFrame")
-        info_row._custom_bg = DEEP
+        info_row._custom_bg = PANEL_BG
         info_row.pack(anchor="w", pady=(2, 0))
 
         self.case_badge_container = ttk.Frame(info_row, style="Card.TFrame")
-        self.case_badge_container._custom_bg = DEEP
+        self.case_badge_container._custom_bg = PANEL_BG
         self.case_badge_container.pack(side="left", padx=(0, SP_2))
-        self.badge_case = create_badge(self.case_badge_container, "NO ACTIVE CASE", TEXT_MUTED, bg=DEEP)
+        self.badge_case = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEXT_MUTED, bg=PANEL_BG)
         self.badge_case.pack(side="left")
 
-        self.badge_format = create_badge(info_row, "REPORTLAB PDF EXPORT", PEACH, bg=DEEP)
+        self.badge_format = create_soc_badge(info_row, "PDF / REPORTLAB", color=HIGH, bg=PANEL_BG)
         self.badge_format.pack(side="left", padx=(0, SP_3))
 
         self.lbl_report_status = ttk.Label(
             info_row,
             text="STANDBY",
             foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=FONT_MONO_SM,
+            background=PANEL_BG,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
         )
         self.lbl_report_status.pack(side="left")
 
         # Right block: Action Buttons
         right_h = ttk.Frame(inner_h, style="Card.TFrame")
-        right_h._custom_bg = DEEP
+        right_h._custom_bg = PANEL_BG
         right_h.pack(side="right", fill="y", padx=SP_4, pady=SP_2)
 
-        self.btn_export = create_neon_button(
+        self.btn_export = create_soc_button(
             right_h,
             text="[GENERATE & EXPORT PDF REPORT]",
             command=self.generate_report,
             variant="primary",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         self.btn_export.pack(side="left", padx=(0, SP_2))
 
-        self.btn_open = create_neon_button(
+        self.btn_open = create_soc_button(
             right_h,
             text="[OPEN PDF LOCATION]",
             command=self.open_pdf_location,
-            variant="ghost",
-            bg=DEEP,
+            variant="secondary",
+            bg=PANEL_BG,
         )
         self.btn_open.pack(side="left", padx=(0, SP_2))
 
-        self.btn_refresh = create_neon_button(
+        self.btn_refresh = create_soc_button(
             right_h,
             text="[REGENERATE PREVIEW]",
             command=self.refresh_data,
             variant="ghost",
-            bg=DEEP,
+            bg=PANEL_BG,
         )
         self.btn_refresh.pack(side="left")
 
         # ---------------------------------------------------------------------
-        # 2. Status Banner Strip
+        # 3. Status Banner Strip
         # ---------------------------------------------------------------------
-        status_bar = create_glass_frame(
-            self, width=960, height=36, radius=RADIUS_SM, border_color=PLUM, fill_color=ABYSS
+        status_bar = tk.Frame(
+            self, height=36, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER, bd=0
         )
         status_bar.pack(fill="x", padx=SP_6, pady=(0, SP_3))
-        inner_s = status_bar.inner_frame
 
-        s_box = ttk.Frame(inner_s, style="Card.TFrame")
-        s_box._custom_bg = ABYSS
+        s_box = ttk.Frame(status_bar, style="Card.TFrame")
+        s_box._custom_bg = PANEL_ELEVATED
         s_box.pack(anchor="w", padx=SP_4, pady=6)
 
-        self.dot_status = tk.Canvas(s_box, width=10, height=10, bg=ABYSS, highlightthickness=0, bd=0)
+        self.dot_status = tk.Canvas(s_box, width=10, height=10, bg=PANEL_ELEVATED, highlightthickness=0, bd=0)
         self.dot_status.pack(side="left", padx=(0, 6))
-        self.dot_status.create_oval(1, 1, 9, 9, fill=CYAN, outline="")
+        self.dot_status.create_oval(1, 1, 9, 9, fill=MINT, outline="")
 
         self.lbl_banner_message = ttk.Label(
             s_box,
             text="Click [GENERATE & EXPORT PDF REPORT] to build formal report document.",
             foreground=TEXT_SECONDARY,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            background=PANEL_ELEVATED,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
         )
         self.lbl_banner_message.pack(side="left")
 
         # ---------------------------------------------------------------------
-        # 3. Main Document Preview Container (Scrollable)
+        # 4. Main Document Preview Container (Scrollable)
         # ---------------------------------------------------------------------
         self.scroll_container = ttk.Frame(self, style="TFrame")
         self.scroll_container.pack(fill="both", expand=True, padx=SP_6, pady=(0, SP_4))
 
         self.canvas_scroll = tk.Canvas(
             self.scroll_container,
-            bg=VOID,
+            bg=APP_BG,
             highlightthickness=0,
             bd=0,
         )
@@ -288,7 +335,7 @@ class ReportFrame(ttk.Frame):
         if target_case_id is None:
             self.lbl_banner_message.config(
                 text="[ALERT] No case selected. Create or select a case first.",
-                foreground=PINK,
+                foreground=CRITICAL,
             )
             return
 
@@ -303,20 +350,20 @@ class ReportFrame(ttk.Frame):
             self.last_generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             filename = os.path.basename(pdf_path)
-            self.lbl_report_status.config(text="PDF READY", foreground=CYAN)
+            self.lbl_report_status.config(text="PDF READY", foreground=MINT)
             self.lbl_banner_message.config(
                 text=f"PDF EXPORT COMPLETE: {pdf_path} ({self.last_generated_at})",
-                foreground=ICE,
+                foreground=MINT,
             )
 
             # Refresh preview to reflect latest records
             self.refresh_data()
 
         except Exception as exc:
-            self.lbl_report_status.config(text="GENERATION ERROR", foreground=PINK)
+            self.lbl_report_status.config(text="GENERATION ERROR", foreground=CRITICAL)
             self.lbl_banner_message.config(
                 text=f"[ERROR] PDF generation failed: {str(exc)}",
-                foreground=PINK,
+                foreground=CRITICAL,
             )
         finally:
             self._is_generating = False
@@ -326,9 +373,8 @@ class ReportFrame(ttk.Frame):
         target_path = self.last_generated_pdf
         if target_path and os.path.exists(target_path):
             try:
-                # Open PDF file directly using default PDF reader
                 os.startfile(os.path.normpath(target_path))
-                self.lbl_banner_message.config(text=f"Opened PDF document: {target_path}", foreground=ICE)
+                self.lbl_banner_message.config(text=f"Opened PDF document: {target_path}", foreground=MINT)
                 return
             except Exception:
                 try:
@@ -347,7 +393,7 @@ class ReportFrame(ttk.Frame):
         else:
             self.lbl_banner_message.config(
                 text="No PDF export found. Click [GENERATE & EXPORT PDF REPORT] first.",
-                foreground=PEACH,
+                foreground=HIGH,
             )
 
     # -------------------------------------------------------------------------
@@ -376,10 +422,10 @@ class ReportFrame(ttk.Frame):
 
         if case:
             c_text = f"CASE: {case['case_number']}"
-            c_badge = create_badge(self.case_badge_container, c_text, CYAN, bg=DEEP)
+            c_badge = create_soc_badge(self.case_badge_container, c_text, color=CYAN, bg=PANEL_BG)
             c_badge.pack(side="left")
         else:
-            c_badge = create_badge(self.case_badge_container, "NO ACTIVE CASE", TEXT_MUTED, bg=DEEP)
+            c_badge = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEXT_MUTED, bg=PANEL_BG)
             c_badge.pack(side="left")
 
         # 3. Check existing reports in SQLite
@@ -480,9 +526,9 @@ class ReportFrame(ttk.Frame):
         # Main Document Dossier Card
         doc_card = tk.Frame(
             center_wrap,
-            bg=DEEP,
+            bg=PANEL_BG,
             highlightthickness=1,
-            highlightbackground=STEEL,
+            highlightbackground=BORDER,
             bd=0,
         )
         doc_card.pack(fill="both", expand=True, padx=SP_2, pady=SP_2)
@@ -509,8 +555,8 @@ class ReportFrame(ttk.Frame):
         self._render_preview_footer(doc_card)
 
     def _render_preview_header(self, parent: tk.Widget, case: Optional[Dict[str, Any]]) -> None:
-        """Render document header block with Cyberpunk branding."""
-        header_frame = tk.Frame(parent, bg=ABYSS, padx=SP_6, pady=SP_4)
+        """Render document header block with SOC workstation branding."""
+        header_frame = tk.Frame(parent, bg=BG_SECONDARY, padx=SP_6, pady=SP_4)
         header_frame.pack(fill="x")
 
         # Top line title
@@ -518,22 +564,22 @@ class ReportFrame(ttk.Frame):
             header_frame,
             text="FORENSEQUENCE",
             foreground=CYAN,
-            background=ABYSS,
-            font=(FONT_DISPLAY, 16, "bold"),
+            background=BG_SECONDARY,
+            font=(FONT_FALLBACK, FS_XL, "bold"),
         ).pack(anchor="w")
 
         ttk.Label(
             header_frame,
             text="DIGITAL FORENSIC INVESTIGATION REPORT",
             foreground=TEXT_PRIMARY,
-            background=ABYSS,
+            background=BG_SECONDARY,
             font=(FONT_FALLBACK, FS_MD, "bold"),
         ).pack(anchor="w", pady=(2, 6))
 
-        create_divider(header_frame, color=PURPLE).pack(fill="x", pady=(0, 6))
+        create_divider(header_frame, color=BORDER).pack(fill="x", pady=(0, 6))
 
         # Metadata grid
-        meta_grid = tk.Frame(header_frame, bg=ABYSS)
+        meta_grid = tk.Frame(header_frame, bg=BG_SECONDARY)
         meta_grid.pack(fill="x")
 
         case_num = case.get("case_number", "N/A") if case else "N/A"
@@ -550,14 +596,14 @@ class ReportFrame(ttk.Frame):
         ]
 
         for left_lbl, left_val, right_lbl, right_val in fields:
-            row = tk.Frame(meta_grid, bg=ABYSS)
+            row = tk.Frame(meta_grid, bg=BG_SECONDARY)
             row.pack(fill="x", pady=1)
 
-            ttk.Label(row, text=left_lbl, foreground=TEXT_MUTED, background=ABYSS, font=FONT_SMALL, width=14).pack(side="left")
-            ttk.Label(row, text=left_val, foreground=TEXT_PRIMARY, background=ABYSS, font=(FONT_FALLBACK, FS_SM, "bold"), width=32).pack(side="left")
+            ttk.Label(row, text=left_lbl, foreground=TEXT_MUTED, background=BG_SECONDARY, font=FONT_SMALL, width=14).pack(side="left")
+            ttk.Label(row, text=left_val, foreground=TEXT_PRIMARY, background=BG_SECONDARY, font=(FONT_FALLBACK, FS_SM, "bold"), width=32).pack(side="left")
 
-            ttk.Label(row, text=right_lbl, foreground=TEXT_MUTED, background=ABYSS, font=FONT_SMALL, width=14).pack(side="left")
-            ttk.Label(row, text=right_val, foreground=ICE, background=ABYSS, font=FONT_SMALL).pack(side="left")
+            ttk.Label(row, text=right_lbl, foreground=TEXT_MUTED, background=BG_SECONDARY, font=FONT_SMALL, width=14).pack(side="left")
+            ttk.Label(row, text=right_val, foreground=MINT, background=BG_SECONDARY, font=FONT_SMALL).pack(side="left")
 
     def _render_preview_executive_summary(
         self,
@@ -569,30 +615,30 @@ class ReportFrame(ttk.Frame):
         findings_items: List[Dict[str, Any]],
     ) -> None:
         """Render Section 1 executive threat metrics."""
-        sec_frame = tk.Frame(parent, bg=DEEP, padx=SP_6, pady=SP_3)
+        sec_frame = tk.Frame(parent, bg=PANEL_BG, padx=SP_6, pady=SP_3)
         sec_frame.pack(fill="x")
 
         create_section_header(sec_frame, "SECTION 1: EXECUTIVE SUMMARY & THREAT RISK ASSESSMENT").pack(anchor="w", pady=(0, 4))
-        create_divider(sec_frame, color=PLUM).pack(fill="x", pady=(0, 6))
+        create_divider(sec_frame, color=BORDER).pack(fill="x", pady=(0, 6))
 
         # KPI Stats Row
-        kpi_row = tk.Frame(sec_frame, bg=DEEP)
+        kpi_row = tk.Frame(sec_frame, bg=PANEL_BG)
         kpi_row.pack(fill="x", pady=(0, 6))
 
         r_col = risk_color(risk_score)
         cards_spec = [
             ("THREAT SCORE", f"{risk_score} / 100", r_col),
             ("RISK LEVEL", risk_level, r_col),
-            ("EVIDENCE ITEMS", str(len(evidence_items)), ICE),
-            ("DERIVED FINDINGS", str(len(findings_items)), PEACH),
+            ("EVIDENCE ITEMS", str(len(evidence_items)), MINT),
+            ("DERIVED FINDINGS", str(len(findings_items)), HIGH),
         ]
 
         for title, val, color in cards_spec:
-            card = tk.Frame(kpi_row, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, padx=10, pady=6)
+            card = tk.Frame(kpi_row, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER, padx=10, pady=6)
             card.pack(side="left", fill="both", expand=True, padx=3)
 
-            ttk.Label(card, text=title, foreground=TEXT_MUTED, background=ABYSS, font=FONT_SMALL).pack(anchor="w")
-            ttk.Label(card, text=val, foreground=color, background=ABYSS, font=(FONT_DISPLAY, FS_LG, "bold")).pack(anchor="w")
+            ttk.Label(card, text=title, foreground=TEXT_MUTED, background=PANEL_ELEVATED, font=FONT_SMALL).pack(anchor="w")
+            ttk.Label(card, text=val, foreground=color, background=PANEL_ELEVATED, font=(FONT_FALLBACK, FS_LG, "bold")).pack(anchor="w")
 
         # Narrative paragraph
         desc_text = case.get("description", "").strip() if case else ""
@@ -610,15 +656,15 @@ class ReportFrame(ttk.Frame):
             sec_frame,
             text=narrative,
             foreground=TEXT_SECONDARY,
-            background=DEEP,
-            font=FONT_BODY,
+            background=PANEL_BG,
+            font=(FONT_FALLBACK, FS_BASE, "normal"),
             wraplength=760,
             justify="left",
         ).pack(fill="x", pady=(4, 0))
 
     def _render_preview_evidence_table(self, parent: tk.Widget, evidence_items: List[Dict[str, Any]]) -> None:
         """Render Section 2 evidence inventory and SHA-256 hashes."""
-        sec_frame = tk.Frame(parent, bg=DEEP, padx=SP_6, pady=SP_3)
+        sec_frame = tk.Frame(parent, bg=PANEL_BG, padx=SP_6, pady=SP_3)
         sec_frame.pack(fill="x")
 
         create_section_header(sec_frame, "SECTION 2: EVIDENCE INVENTORY (CHAIN OF CUSTODY)").pack(anchor="w", pady=(0, 2))
@@ -626,53 +672,53 @@ class ReportFrame(ttk.Frame):
             sec_frame,
             text="Cryptographic integrity validated via 64KB block SHA-256 hashing.",
             foreground=TEXT_MUTED,
-            background=DEEP,
+            background=PANEL_BG,
             font=FONT_SMALL,
         ).pack(anchor="w", pady=(0, 4))
-        create_divider(sec_frame, color=PLUM).pack(fill="x", pady=(0, 6))
+        create_divider(sec_frame, color=BORDER).pack(fill="x", pady=(0, 6))
 
-        tbl_box = tk.Frame(sec_frame, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL)
+        tbl_box = tk.Frame(sec_frame, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER)
         tbl_box.pack(fill="x")
 
         # Header Row
-        h_row = tk.Frame(tbl_box, bg=STEEL, padx=6, pady=4)
+        h_row = tk.Frame(tbl_box, bg=PANEL_HOVER, padx=6, pady=4)
         h_row.pack(fill="x")
 
-        ttk.Label(h_row, text="FILENAME", foreground=TEXT_PRIMARY, background=STEEL, font=(FONT_FALLBACK, FS_XS, "bold"), width=22).pack(side="left")
-        ttk.Label(h_row, text="TYPE", foreground=TEXT_PRIMARY, background=STEEL, font=(FONT_FALLBACK, FS_XS, "bold"), width=10).pack(side="left")
-        ttk.Label(h_row, text="UPLOADED AT", foreground=TEXT_PRIMARY, background=STEEL, font=(FONT_FALLBACK, FS_XS, "bold"), width=18).pack(side="left")
-        ttk.Label(h_row, text="SHA-256 CRYPTOGRAPHIC HASH", foreground=TEXT_PRIMARY, background=STEEL, font=(FONT_FALLBACK, FS_XS, "bold")).pack(side="left")
+        ttk.Label(h_row, text="FILENAME", foreground=TEXT_PRIMARY, background=PANEL_HOVER, font=(FONT_FALLBACK, FS_XS, "bold"), width=22).pack(side="left")
+        ttk.Label(h_row, text="TYPE", foreground=TEXT_PRIMARY, background=PANEL_HOVER, font=(FONT_FALLBACK, FS_XS, "bold"), width=10).pack(side="left")
+        ttk.Label(h_row, text="UPLOADED AT", foreground=TEXT_PRIMARY, background=PANEL_HOVER, font=(FONT_FALLBACK, FS_XS, "bold"), width=18).pack(side="left")
+        ttk.Label(h_row, text="SHA-256 CRYPTOGRAPHIC HASH", foreground=TEXT_PRIMARY, background=PANEL_HOVER, font=(FONT_FALLBACK, FS_XS, "bold")).pack(side="left")
 
         if not evidence_items:
-            empty_row = tk.Frame(tbl_box, bg=ABYSS, padx=6, pady=6)
+            empty_row = tk.Frame(tbl_box, bg=PANEL_ELEVATED, padx=6, pady=6)
             empty_row.pack(fill="x")
-            ttk.Label(empty_row, text="No evidence files cataloged yet in SQLite database.", foreground=TEXT_MUTED, background=ABYSS, font=FONT_SMALL).pack(anchor="w")
+            ttk.Label(empty_row, text="No evidence files cataloged yet in SQLite database.", foreground=TEXT_MUTED, background=PANEL_ELEVATED, font=FONT_SMALL).pack(anchor="w")
         else:
             for idx, ev in enumerate(evidence_items):
-                bg_col = ABYSS if idx % 2 == 0 else DEEP
+                bg_col = PANEL_ELEVATED if idx % 2 == 0 else PANEL_BG
                 row = tk.Frame(tbl_box, bg=bg_col, padx=6, pady=4)
                 row.pack(fill="x")
 
                 ttk.Label(row, text=ev.get("filename", "unknown"), foreground=TEXT_PRIMARY, background=bg_col, font=(FONT_FALLBACK, FS_XS, "bold"), width=22).pack(side="left")
-                ttk.Label(row, text=str(ev.get("evidence_type", "log")).upper(), foreground=CYAN, background=bg_col, font=FONT_MONO_SM, width=10).pack(side="left")
-                ttk.Label(row, text=str(ev.get("uploaded_at", "N/A")), foreground=TEXT_SECONDARY, background=bg_col, font=FONT_MONO_SM, width=18).pack(side="left")
-                ttk.Label(row, text=str(ev.get("file_hash", "UNKNOWN")), foreground=ICE, background=bg_col, font=FONT_MONO_SM).pack(side="left")
+                ttk.Label(row, text=str(ev.get("evidence_type", "log")).upper(), foreground=CYAN, background=bg_col, font=(FONT_MONO_FALLBACK, FS_XS, "normal"), width=10).pack(side="left")
+                ttk.Label(row, text=str(ev.get("uploaded_at", "N/A")), foreground=TEXT_SECONDARY, background=bg_col, font=(FONT_MONO_FALLBACK, FS_XS, "normal"), width=18).pack(side="left")
+                ttk.Label(row, text=str(ev.get("file_hash", "UNKNOWN")), foreground=MINT, background=bg_col, font=(FONT_MONO_FALLBACK, FS_XS, "normal")).pack(side="left")
 
     def _render_preview_findings(self, parent: tk.Widget, findings_items: List[Dict[str, Any]]) -> None:
         """Render Section 3 derived findings with explainability proofs."""
-        sec_frame = tk.Frame(parent, bg=DEEP, padx=SP_6, pady=SP_3)
+        sec_frame = tk.Frame(parent, bg=PANEL_BG, padx=SP_6, pady=SP_3)
         sec_frame.pack(fill="x")
 
         create_section_header(sec_frame, "SECTION 3: EXTRACTED FACTS & AI REASONING FINDINGS").pack(anchor="w", pady=(0, 4))
-        create_divider(sec_frame, color=PLUM).pack(fill="x", pady=(0, 6))
+        create_divider(sec_frame, color=BORDER).pack(fill="x", pady=(0, 6))
 
         if not findings_items:
             ttk.Label(
                 sec_frame,
                 text="No risk findings derived. Forward Chaining rules evaluated with zero threshold triggers.",
                 foreground=TEXT_MUTED,
-                background=DEEP,
-                font=FONT_BODY,
+                background=PANEL_BG,
+                font=(FONT_FALLBACK, FS_BASE, "normal"),
             ).pack(anchor="w")
             return
 
@@ -695,48 +741,48 @@ class ReportFrame(ttk.Frame):
             proof = rule_obj.explain_template if rule_obj else f"Forward Chaining inferred rule {code} based on verified facts."
 
             if severity >= 25:
-                accent = PINK
+                accent = CRITICAL
             elif severity >= 15:
-                accent = PEACH
+                accent = HIGH
             else:
                 accent = CYAN
 
-            card = tk.Frame(sec_frame, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, padx=8, pady=6)
+            card = tk.Frame(sec_frame, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER, padx=8, pady=6)
             card.pack(fill="x", pady=2)
 
-            top = tk.Frame(card, bg=ABYSS)
+            top = tk.Frame(card, bg=PANEL_ELEVATED)
             top.pack(fill="x")
 
-            create_badge(top, code, PURPLE, bg=ABYSS).pack(side="left", padx=(0, 6))
-            ttk.Label(top, text=title, foreground=TEXT_PRIMARY, background=ABYSS, font=(FONT_FALLBACK, FS_SM, "bold")).pack(side="left")
-            create_badge(top, f"+{severity} PTS", accent, bg=ABYSS).pack(side="right")
+            create_soc_badge(top, code, color=MINT, bg=PANEL_ELEVATED).pack(side="left", padx=(0, 6))
+            ttk.Label(top, text=title, foreground=TEXT_PRIMARY, background=PANEL_ELEVATED, font=(FONT_FALLBACK, FS_SM, "bold")).pack(side="left")
+            create_soc_badge(top, f"+{severity} PTS", color=accent, bg=PANEL_ELEVATED).pack(side="right")
 
-            ttk.Label(card, text=desc, foreground=TEXT_SECONDARY, background=ABYSS, font=FONT_SMALL, wraplength=740, justify="left").pack(fill="x", pady=(2, 4))
+            ttk.Label(card, text=desc, foreground=TEXT_SECONDARY, background=PANEL_ELEVATED, font=FONT_SMALL, wraplength=740, justify="left").pack(fill="x", pady=(2, 4))
 
             # Proof box
-            p_box = tk.Frame(card, bg=DEEP, padx=6, pady=3)
+            p_box = tk.Frame(card, bg=PANEL_BG, padx=6, pady=3)
             p_box.pack(fill="x")
-            ttk.Label(p_box, text="WHY THIS FIRED (FACT PROOF):", foreground=TEXT_MUTED, background=DEEP, font=(FONT_FALLBACK, FS_XS, "bold")).pack(anchor="w")
-            ttk.Label(p_box, text=proof, foreground=ICE, background=DEEP, font=FONT_MONO_SM, wraplength=730, justify="left").pack(anchor="w")
+            ttk.Label(p_box, text="WHY THIS FIRED (FACT PROOF):", foreground=TEXT_MUTED, background=PANEL_BG, font=(FONT_FALLBACK, FS_XS, "bold")).pack(anchor="w")
+            ttk.Label(p_box, text=proof, foreground=MINT, background=PANEL_BG, font=(FONT_MONO_FALLBACK, FS_XS, "normal"), wraplength=730, justify="left").pack(anchor="w")
 
     def _render_preview_recommendations(self, parent: tk.Widget, recommendations: List[str]) -> None:
         """Render Section 4 remediation steps."""
-        sec_frame = tk.Frame(parent, bg=DEEP, padx=SP_6, pady=SP_3)
+        sec_frame = tk.Frame(parent, bg=PANEL_BG, padx=SP_6, pady=SP_3)
         sec_frame.pack(fill="x")
 
         create_section_header(sec_frame, "SECTION 4: INCIDENT RESPONSE RECOMMENDATIONS").pack(anchor="w", pady=(0, 4))
-        create_divider(sec_frame, color=PLUM).pack(fill="x", pady=(0, 6))
+        create_divider(sec_frame, color=BORDER).pack(fill="x", pady=(0, 6))
 
         if not recommendations:
-            ttk.Label(sec_frame, text="No immediate remediation required based on low threat profile.", foreground=TEXT_MUTED, background=DEEP, font=FONT_BODY).pack(anchor="w")
+            ttk.Label(sec_frame, text="No immediate remediation required based on low threat profile.", foreground=TEXT_MUTED, background=PANEL_BG, font=(FONT_FALLBACK, FS_BASE, "normal")).pack(anchor="w")
             return
 
         for idx, rec in enumerate(recommendations, start=1):
-            r_card = tk.Frame(sec_frame, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL, padx=8, pady=4)
+            r_card = tk.Frame(sec_frame, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER, padx=8, pady=4)
             r_card.pack(fill="x", pady=2)
 
-            create_badge(r_card, f"#{idx:02d}", CYAN, bg=ABYSS).pack(side="left", padx=(0, 8))
-            ttk.Label(r_card, text=rec, foreground=TEXT_PRIMARY, background=ABYSS, font=FONT_SMALL, wraplength=710, justify="left").pack(side="left", fill="x", expand=True)
+            create_soc_badge(r_card, f"#{idx:02d}", color=CYAN, bg=PANEL_ELEVATED).pack(side="left", padx=(0, 8))
+            ttk.Label(r_card, text=rec, foreground=TEXT_PRIMARY, background=PANEL_ELEVATED, font=FONT_SMALL, wraplength=710, justify="left").pack(side="left", fill="x", expand=True)
 
     def _render_preview_timeline(
         self,
@@ -745,7 +791,7 @@ class ReportFrame(ttk.Frame):
         timeline_stats: Dict[str, Any],
     ) -> None:
         """Render Section 5 chronological timeline overview."""
-        sec_frame = tk.Frame(parent, bg=DEEP, padx=SP_6, pady=SP_3)
+        sec_frame = tk.Frame(parent, bg=PANEL_BG, padx=SP_6, pady=SP_3)
         sec_frame.pack(fill="x")
 
         create_section_header(sec_frame, "SECTION 5: CHRONOLOGICAL EVENT SEQUENCE SUMMARY").pack(anchor="w", pady=(0, 2))
@@ -754,41 +800,41 @@ class ReportFrame(ttk.Frame):
             sec_frame,
             text=f"Total Events: {total} | Time Span: {timeline_stats.get('duration_seconds', 0)}s | First: {timeline_stats.get('first_event') or 'N/A'}",
             foreground=TEXT_MUTED,
-            background=DEEP,
+            background=PANEL_BG,
             font=FONT_SMALL,
         ).pack(anchor="w", pady=(0, 4))
-        create_divider(sec_frame, color=PLUM).pack(fill="x", pady=(0, 6))
+        create_divider(sec_frame, color=BORDER).pack(fill="x", pady=(0, 6))
 
-        tbl_box = tk.Frame(sec_frame, bg=ABYSS, highlightthickness=1, highlightbackground=STEEL)
+        tbl_box = tk.Frame(sec_frame, bg=PANEL_ELEVATED, highlightthickness=1, highlightbackground=BORDER)
         tbl_box.pack(fill="x")
 
         # Header
-        h_row = tk.Frame(tbl_box, bg=STEEL, padx=6, pady=4)
+        h_row = tk.Frame(tbl_box, bg=PANEL_HOVER, padx=6, pady=4)
         h_row.pack(fill="x")
 
-        ttk.Label(h_row, text="TIMESTAMP", foreground=TEXT_PRIMARY, background=STEEL, font=(FONT_FALLBACK, FS_XS, "bold"), width=20).pack(side="left")
-        ttk.Label(h_row, text="SOURCE", foreground=TEXT_PRIMARY, background=STEEL, font=(FONT_FALLBACK, FS_XS, "bold"), width=12).pack(side="left")
-        ttk.Label(h_row, text="CATEGORY", foreground=TEXT_PRIMARY, background=STEEL, font=(FONT_FALLBACK, FS_XS, "bold"), width=16).pack(side="left")
-        ttk.Label(h_row, text="DESCRIPTION", foreground=TEXT_PRIMARY, background=STEEL, font=(FONT_FALLBACK, FS_XS, "bold")).pack(side="left")
+        ttk.Label(h_row, text="TIMESTAMP", foreground=TEXT_PRIMARY, background=PANEL_HOVER, font=(FONT_FALLBACK, FS_XS, "bold"), width=20).pack(side="left")
+        ttk.Label(h_row, text="SOURCE", foreground=TEXT_PRIMARY, background=PANEL_HOVER, font=(FONT_FALLBACK, FS_XS, "bold"), width=12).pack(side="left")
+        ttk.Label(h_row, text="CATEGORY", foreground=TEXT_PRIMARY, background=PANEL_HOVER, font=(FONT_FALLBACK, FS_XS, "bold"), width=16).pack(side="left")
+        ttk.Label(h_row, text="DESCRIPTION", foreground=TEXT_PRIMARY, background=PANEL_HOVER, font=(FONT_FALLBACK, FS_XS, "bold")).pack(side="left")
 
         display_events = timeline_events[:20]
         if not display_events:
-            empty_row = tk.Frame(tbl_box, bg=ABYSS, padx=6, pady=6)
+            empty_row = tk.Frame(tbl_box, bg=PANEL_ELEVATED, padx=6, pady=6)
             empty_row.pack(fill="x")
-            ttk.Label(empty_row, text="No timestamped event records available.", foreground=TEXT_MUTED, background=ABYSS, font=FONT_SMALL).pack(anchor="w")
+            ttk.Label(empty_row, text="No timestamped event records available.", foreground=TEXT_MUTED, background=PANEL_ELEVATED, font=FONT_SMALL).pack(anchor="w")
         else:
             for idx, ev in enumerate(display_events):
-                bg_col = ABYSS if idx % 2 == 0 else DEEP
+                bg_col = PANEL_ELEVATED if idx % 2 == 0 else PANEL_BG
                 row = tk.Frame(tbl_box, bg=bg_col, padx=6, pady=3)
                 row.pack(fill="x")
 
                 ts = ev.get("timestamp") or "N/A"
                 src = "AI FINDING" if ev.get("source") == "ai_inference" else "EVIDENCE"
-                src_col = PURPLE if ev.get("source") == "ai_inference" else CYAN
+                src_col = TEAL if ev.get("source") == "ai_inference" else CYAN
                 cat = str(ev.get("category", "info")).upper()
                 desc = str(ev.get("description", ""))
 
-                ttk.Label(row, text=ts, foreground=TEXT_MUTED, background=bg_col, font=FONT_MONO_SM, width=20).pack(side="left")
+                ttk.Label(row, text=ts, foreground=TEXT_MUTED, background=bg_col, font=(FONT_MONO_FALLBACK, FS_XS, "normal"), width=20).pack(side="left")
                 ttk.Label(row, text=src, foreground=src_col, background=bg_col, font=(FONT_FALLBACK, FS_XS, "bold"), width=12).pack(side="left")
                 ttk.Label(row, text=cat, foreground=TEXT_SECONDARY, background=bg_col, font=FONT_SMALL, width=16).pack(side="left")
                 ttk.Label(row, text=desc[:65], foreground=TEXT_PRIMARY, background=bg_col, font=FONT_SMALL).pack(side="left")
@@ -798,23 +844,23 @@ class ReportFrame(ttk.Frame):
                     sec_frame,
                     text=f"Showing top 20 of {len(timeline_events)} total sequence events. Complete record exported in PDF.",
                     foreground=TEXT_MUTED,
-                    background=DEEP,
+                    background=PANEL_BG,
                     font=FONT_SMALL,
                 )
                 more_lbl.pack(anchor="w", pady=(4, 0))
 
     def _render_preview_footer(self, parent: tk.Widget) -> None:
         """Render formal document certification footer."""
-        foot_frame = tk.Frame(parent, bg=ABYSS, padx=SP_6, pady=SP_4)
+        foot_frame = tk.Frame(parent, bg=BG_SECONDARY, padx=SP_6, pady=SP_4)
         foot_frame.pack(fill="x")
 
-        create_divider(foot_frame, color=PLUM).pack(fill="x", pady=(0, 6))
+        create_divider(foot_frame, color=BORDER).pack(fill="x", pady=(0, 6))
 
         ttk.Label(
             foot_frame,
             text="CONFIDENTIAL // LAW ENFORCEMENT & FORENSIC USE ONLY",
             foreground=TEXT_MUTED,
-            background=ABYSS,
+            background=BG_SECONDARY,
             font=(FONT_FALLBACK, FS_XS, "bold"),
         ).pack(anchor="w")
 
@@ -822,6 +868,6 @@ class ReportFrame(ttk.Frame):
             foot_frame,
             text="FORENSEQUENCE EXPERT SYSTEM — PROPOSITIONAL INFERENCE CERTIFIED",
             foreground=CYAN,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            background=BG_SECONDARY,
+            font=(FONT_MONO_FALLBACK, FS_XS, "normal"),
         ).pack(anchor="w")
