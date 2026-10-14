@@ -1,40 +1,51 @@
 # =============================================================================
 # gui/shell.py
-# FORENSEQUENCE - Main Application Shell & Navigation Chrome
+# FORENSEQUENCE - Premium SOC Workstation Desktop Chrome & Navigation
 # =============================================================================
+
+from __future__ import annotations
 
 import datetime
 import tkinter as tk
+from typing import Dict, Optional, Callable
 import ttkbootstrap as ttk
-from typing import Dict, Type, Optional
 
 from gui.theme import (
-    VOID,
-    ABYSS,
-    DEEP,
-    STEEL,
+    APP_BG,
+    BG_SECONDARY,
+    SIDEBAR_BG,
+    PANEL_BG,
+    PANEL_ELEVATED,
+    PANEL_HOVER,
     CYAN,
-    ICE,
-    PINK,
-    MAGENTA,
-    PURPLE,
-    PLUM,
-    PEACH,
+    CYAN_NEON,
+    MINT,
+    TEAL,
+    TEAL_MID,
+    TEAL_DARK,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     TEXT_MUTED,
+    BORDER,
+    BORDER_SECONDARY,
+    BORDER_HOVER,
+    CRITICAL,
+    HIGH,
+    MEDIUM,
+    LOW,
+    FONT_DISPLAY,
     FONT_FALLBACK,
     FONT_MONO_FALLBACK,
-    FONT_HEADING,
-    FONT_SECTION,
-    FONT_BODY,
-    FONT_SMALL,
-    FONT_MONO_SM,
+    FS_XS,
+    FS_SM,
+    FS_BASE,
     SP_1,
     SP_2,
     SP_3,
     SP_4,
     SP_6,
+    create_soc_badge,
+    create_soc_entry,
     create_divider,
 )
 
@@ -50,12 +61,41 @@ from gui.about_frame import AboutFrame
 from database import get_case_by_id
 
 
-class NavItem(tk.Canvas):
+# =============================================================================
+# ROUTE SPECIFICATION & ALIASES
+# =============================================================================
+
+ROUTE_ALIASES: Dict[str, str] = {
+    "Cases": "Case Investigation",
+    "create_case": "Case Investigation",
+    "create": "Case Investigation",
+    "Evidence": "Evidence Explorer",
+    "Analysis": "AI Analysis",
+    "Live Monitor": "Real-time Monitor",
+}
+
+ROUTE_CATEGORIES: Dict[str, str] = {
+    "Dashboard": "WORKSPACE",
+    "Case Investigation": "WORKSPACE",
+    "Evidence Explorer": "WORKSPACE",
+    "AI Analysis": "OPERATIONS",
+    "Real-time Monitor": "OPERATIONS",
+    "Reports": "OPERATIONS",
+    "Settings": "SYSTEM",
+    "About": "SYSTEM",
+}
+
+
+# =============================================================================
+# SIDEBAR NAVIGATION ITEM
+# =============================================================================
+
+class SOCNavItem(tk.Canvas):
     """
-    Sidebar navigation item with Cyberpunk interactive states:
-    - Default: TEXT_SECONDARY text, dark ABYSS background
-    - Hover: TEXT_PRIMARY text, glowing CYAN left indicator bar
-    - Active: TEXT_PRIMARY bold, DEEP background wash, solid CYAN/PINK left bar
+    SOC Workstation sidebar navigation button with stateful indicator:
+    - Default: TEXT_SECONDARY text, SIDEBAR_BG
+    - Hover: TEXT_PRIMARY text, PANEL_ELEVATED background
+    - Selected: MINT text, PANEL_HOVER background, MINT active pill indicator
     """
 
     def __init__(
@@ -63,15 +103,15 @@ class NavItem(tk.Canvas):
         parent: tk.Misc,
         text: str,
         route_name: str,
-        on_click_callback,
-        width: int = 240,
-        height: int = 42,
+        on_click_callback: Callable[[str], None],
+        width: int = 225,
+        height: int = 36,
     ):
         super().__init__(
             parent,
             width=width,
             height=height,
-            bg=ABYSS,
+            bg=SIDEBAR_BG,
             highlightthickness=0,
             bd=0,
             cursor="hand2",
@@ -92,7 +132,7 @@ class NavItem(tk.Canvas):
         self.redraw()
 
     def set_active(self, active: bool) -> None:
-        """Update active status and redraw."""
+        """Update active status and redraw item."""
         self.is_active = active
         self.redraw()
 
@@ -109,39 +149,39 @@ class NavItem(tk.Canvas):
             self.on_click_callback(self.route_name)
 
     def redraw(self) -> None:
-        """Render the nav item canvas state."""
+        """Render SOC nav item state."""
         self.delete("all")
 
         # Background wash
         if self.is_active:
-            bg_color = DEEP
+            bg_color = PANEL_HOVER
         elif self.is_hovered:
-            bg_color = "#0c2b54"
+            bg_color = PANEL_ELEVATED
         else:
-            bg_color = ABYSS
+            bg_color = SIDEBAR_BG
 
         self.create_rectangle(0, 0, self.w, self.h, fill=bg_color, outline="")
 
-        # Left accent indicator bar
+        # Left indicator dot/pill for active item
         if self.is_active:
-            accent_color = CYAN if self.route_name != "Live Monitor" else PINK
-            self.create_rectangle(0, 0, 4, self.h, fill=accent_color, outline="")
+            self.create_rectangle(0, 4, 3, self.h - 4, fill=MINT, outline="")
         elif self.is_hovered:
-            self.create_rectangle(0, 0, 3, self.h, fill=CYAN, outline="")
+            self.create_rectangle(0, 8, 2, self.h - 8, fill=BORDER_HOVER, outline="")
 
         # Text label
         if self.is_active:
-            fg_color = TEXT_PRIMARY
-            font_spec = (FONT_FALLBACK, 11, "bold")
+            fg_color = MINT
+            font_spec = (FONT_FALLBACK, FS_BASE, "bold")
         elif self.is_hovered:
             fg_color = TEXT_PRIMARY
-            font_spec = (FONT_FALLBACK, 11, "normal")
+            font_spec = (FONT_FALLBACK, FS_BASE, "normal")
         else:
             fg_color = TEXT_SECONDARY
-            font_spec = (FONT_FALLBACK, 11, "normal")
+            font_spec = (FONT_FALLBACK, FS_BASE, "normal")
 
+        # 12px horizontal padding
         self.create_text(
-            24,
+            16,
             self.h // 2,
             text=self.item_text,
             anchor="w",
@@ -150,12 +190,21 @@ class NavItem(tk.Canvas):
         )
 
 
+# Legacy alias
+NavItem = SOCNavItem
+
+
+# =============================================================================
+# MAIN APPLICATION SHELL
+# =============================================================================
+
 class AppShell(ttk.Frame):
     """
-    Main Application Shell featuring:
-    - 240px Fixed Left Sidebar with styled nav items
-    - Dynamic central Content Area with instantaneous screen routing
-    - 32px Bottom Status Bar with real-time clock and live monitoring state
+    SOC Workstation Application Shell featuring:
+    - 225px Fixed Left Sidebar with grouped category navigation
+    - 42px Top Toolbar with Breadcrumb, Search Input, Case Badge, and Live Status Dot
+    - Dynamic Central Content Area supporting instantaneous screen routing
+    - 26px Bottom Status Bar with system telemetry and real-time UTC clock
     """
 
     def __init__(self, parent: tk.Misc):
@@ -163,18 +212,18 @@ class AppShell(ttk.Frame):
         self.parent = parent
 
         # Screen Routing Registry
-        self._routes: Dict[str, Type[ttk.Frame]] = {
+        self._routes: Dict[str, type] = {
             "Dashboard": DashboardFrame,
-            "Cases": CreateCaseFrame,
-            "Evidence": CaseDetailFrame,
-            "Analysis": AnalysisFrame,
-            "Live Monitor": LiveMonitorFrame,
+            "Case Investigation": CreateCaseFrame,
+            "Evidence Explorer": CaseDetailFrame,
+            "AI Analysis": AnalysisFrame,
+            "Real-time Monitor": LiveMonitorFrame,
             "Reports": ReportFrame,
             "Settings": SettingsFrame,
             "About": AboutFrame,
         }
 
-        self._nav_items: Dict[str, NavItem] = {}
+        self._nav_items: Dict[str, SOCNavItem] = {}
         self._current_screen_name: Optional[str] = None
         self._current_screen_widget: Optional[ttk.Frame] = None
         self._is_live_active = False
@@ -187,197 +236,267 @@ class AppShell(ttk.Frame):
         # Route to default screen
         self.show_screen("Dashboard")
 
+    # -------------------------------------------------------------------------
+    # Layout Builder
+    # -------------------------------------------------------------------------
+
     def _build_layout(self) -> None:
-        """Assemble the shell chrome: sidebar, content area, and status bar."""
+        """Assemble SOC workstation desktop chrome: sidebar, top toolbar, content, status bar."""
         self.configure(style="TFrame")
 
-        # Top Body Container (Sidebar + Content)
-        self.body_container = ttk.Frame(self, style="TFrame")
-        self.body_container.pack(fill="both", expand=True)
+        # Outer horizontal split container: Sidebar (Left) + Workstation Main (Right)
+        self.outer_split = ttk.Frame(self, style="TFrame")
+        self.outer_split.pack(fill="both", expand=True)
 
         # ---------------------------------------------------------------------
-        # 1. Left Sidebar
+        # 1. Left Sidebar (225px Fixed Width, #050C0B, Right Border 1px #1B302D)
         # ---------------------------------------------------------------------
-        self.sidebar = ttk.Frame(self.body_container, width=240, style="Panel.TFrame")
-        self.sidebar.pack(side="left", fill="y")
-        self.sidebar.pack_propagate(False)
+        self.sidebar_container = ttk.Frame(self.outer_split, width=225, style="Panel.TFrame")
+        self.sidebar_container._custom_bg = SIDEBAR_BG
+        self.sidebar_container.pack(side="left", fill="y")
+        self.sidebar_container.pack_propagate(False)
 
-        # Sidebar Header Branding
-        brand_frame = ttk.Frame(self.sidebar, style="Panel.TFrame")
-        brand_frame.pack(fill="x", padx=SP_4, pady=(SP_6, SP_3))
-
-        ttk.Label(
-            brand_frame,
-            text="FORENSEQUENCE",
-            foreground=CYAN,
-            background=ABYSS,
-            font=(FONT_FALLBACK, 12, "bold"),
-            anchor="w",
-        ).pack(fill="x")
-
-        ttk.Label(
-            brand_frame,
-            text="FORENSIC ASSISTANT",
-            foreground=TEXT_MUTED,
-            background=ABYSS,
-            font=(FONT_FALLBACK, 8, "bold"),
-            anchor="w",
-        ).pack(fill="x")
-
-        create_divider(self.sidebar, color=PLUM).pack(fill="x", padx=SP_3, pady=(SP_2, SP_4))
-
-        # Main Navigation Group
-        main_nav_spec = [
-            ("Dashboard", "Dashboard"),
-            ("Cases", "Cases"),
-            ("Evidence Detail", "Evidence"),
-            ("AI Analysis", "Analysis"),
-            ("Live Monitor", "Live Monitor"),
-            ("Reports", "Reports"),
-        ]
-
-        for display_label, route_key in main_nav_spec:
-            nav_btn = NavItem(
-                self.sidebar,
-                text=display_label,
-                route_name=route_key,
-                on_click_callback=self.show_screen,
-                width=240,
-                height=40,
-            )
-            nav_btn.pack(fill="x", pady=1)
-            self._nav_items[route_key] = nav_btn
-
-        # Spacer pushing settings/about to bottom
-        spacer = ttk.Frame(self.sidebar, style="Panel.TFrame")
-        spacer.pack(fill="both", expand=True)
-
-        create_divider(self.sidebar, color=PLUM).pack(fill="x", padx=SP_3, pady=(SP_2, SP_3))
-
-        # Bottom Navigation Group
-        bottom_nav_spec = [
-            ("Settings", "Settings"),
-            ("About", "About"),
-        ]
-
-        for display_label, route_key in bottom_nav_spec:
-            nav_btn = NavItem(
-                self.sidebar,
-                text=display_label,
-                route_name=route_key,
-                on_click_callback=self.show_screen,
-                width=240,
-                height=38,
-            )
-            nav_btn.pack(fill="x", pady=1)
-            self._nav_items[route_key] = nav_btn
-
-        ttk.Frame(self.sidebar, height=SP_4, style="Panel.TFrame").pack()
-
-        # Vertical Divider between Sidebar and Content Area
+        # Right border line on sidebar
         v_divider = tk.Canvas(
-            self.body_container, width=1, bg=PLUM, highlightthickness=0, bd=0
+            self.outer_split, width=1, bg=BORDER, highlightthickness=0, bd=0
         )
         v_divider.pack(side="left", fill="y")
 
-        # ---------------------------------------------------------------------
-        # 2. Central Content Area
-        # ---------------------------------------------------------------------
-        self.content_container = ttk.Frame(self.body_container, style="TFrame")
-        self.content_container.pack(side="left", fill="both", expand=True)
+        # Top Branding Header in Sidebar
+        brand_frame = tk.Frame(self.sidebar_container, bg=SIDEBAR_BG, padx=SP_4, pady=SP_4)
+        brand_frame.pack(fill="x")
+
+        tk.Label(
+            brand_frame,
+            text="FORENSEQUENCE",
+            fg=TEXT_PRIMARY,
+            bg=SIDEBAR_BG,
+            font=(FONT_DISPLAY, 14, "bold"),
+            anchor="w",
+        ).pack(fill="x")
+
+        tk.Label(
+            brand_frame,
+            text="v1.0 SOC WORKSTATION",
+            fg=TEXT_MUTED,
+            bg=SIDEBAR_BG,
+            font=(FONT_FALLBACK, 10, "bold"),
+            anchor="w",
+        ).pack(fill="x", pady=(2, 0))
+
+        create_divider(self.sidebar_container, color=BORDER).pack(fill="x", padx=SP_3, pady=(SP_2, SP_3))
+
+        # Grouped Navigation Sections
+        nav_groups = [
+            ("WORKSPACE", [
+                ("Dashboard", "Dashboard"),
+                ("Case Investigation", "Case Investigation"),
+                ("Evidence Explorer", "Evidence Explorer"),
+            ]),
+            ("OPERATIONS", [
+                ("AI Analysis", "AI Analysis"),
+                ("Real-time Monitor", "Real-time Monitor"),
+                ("Reports", "Reports"),
+            ]),
+            ("SYSTEM", [
+                ("Settings", "Settings"),
+                ("About", "About"),
+            ]),
+        ]
+
+        for group_label, items in nav_groups:
+            # Category Header Label
+            cat_label = tk.Label(
+                self.sidebar_container,
+                text=group_label,
+                fg=TEXT_MUTED,
+                bg=SIDEBAR_BG,
+                font=(FONT_FALLBACK, 10, "bold"),
+                anchor="w",
+                padx=16,
+            )
+            cat_label.pack(fill="x", pady=(SP_2, 2))
+
+            for display_name, route_key in items:
+                nav_btn = SOCNavItem(
+                    self.sidebar_container,
+                    text=display_name,
+                    route_name=route_key,
+                    on_click_callback=self.show_screen,
+                    width=225,
+                    height=36,
+                )
+                nav_btn.pack(fill="x", pady=1)
+                self._nav_items[route_key] = nav_btn
+
+        # Bottom spacer pushing sidebar elements up
+        spacer = ttk.Frame(self.sidebar_container, style="Panel.TFrame")
+        spacer._custom_bg = SIDEBAR_BG
+        spacer.pack(fill="both", expand=True)
 
         # ---------------------------------------------------------------------
-        # 3. Bottom Status Bar
+        # 2. Main Right Workstation Area (Top Toolbar + Content + Status Bar)
         # ---------------------------------------------------------------------
-        h_divider = tk.Canvas(
-            self, height=1, bg=PLUM, highlightthickness=0, bd=0
+        self.workstation_area = ttk.Frame(self.outer_split, style="TFrame")
+        self.workstation_area.pack(side="left", fill="both", expand=True)
+
+        # --- Top Toolbar (Height ~42px, #061211, Bottom Border 1px #1B302D) ---
+        self.top_toolbar = tk.Frame(self.workstation_area, height=42, bg=BG_SECONDARY)
+        self.top_toolbar.pack(fill="x", side="top")
+        self.top_toolbar.pack_propagate(False)
+
+        # Left Toolbar: Breadcrumb Trail
+        self.breadcrumb_frame = tk.Frame(self.top_toolbar, bg=BG_SECONDARY)
+        self.breadcrumb_frame.pack(side="left", padx=SP_4, fill="y")
+
+        self.lbl_breadcrumb_prefix = tk.Label(
+            self.breadcrumb_frame,
+            text="WORKSTATION /",
+            fg=TEXT_MUTED,
+            bg=BG_SECONDARY,
+            font=(FONT_FALLBACK, FS_SM, "bold"),
         )
-        h_divider.pack(fill="x")
+        self.lbl_breadcrumb_prefix.pack(side="left", pady=10)
 
-        self.status_bar = ttk.Frame(self, height=32, style="Panel.TFrame")
-        self.status_bar.pack(fill="x", side="bottom")
-        self.status_bar.pack_propagate(False)
+        self.lbl_breadcrumb_active = tk.Label(
+            self.breadcrumb_frame,
+            text="DASHBOARD",
+            fg=TEXT_PRIMARY,
+            bg=BG_SECONDARY,
+            font=(FONT_FALLBACK, FS_SM, "bold"),
+        )
+        self.lbl_breadcrumb_active.pack(side="left", padx=(4, 0), pady=10)
 
-        # Left: Live / Idle Indicator Dot + Status Message
-        status_left = ttk.Frame(self.status_bar, style="Panel.TFrame")
-        status_left.pack(side="left", padx=SP_4, pady=SP_1)
+        # Center Toolbar: Compact Search Input Box
+        self.search_container = tk.Frame(self.top_toolbar, bg=BG_SECONDARY)
+        self.search_container.pack(side="left", expand=True, padx=SP_4)
+
+        self.entry_search = create_soc_entry(
+            self.search_container,
+            placeholder="Search cases, hashes, indicators...",
+            width=36,
+        )
+        self.entry_search.pack(pady=7, ipady=2)
+        self.entry_search.bind("<Return>", self._on_global_search)
+
+        # Right Toolbar: Case Context Badge + Live Status Indicator Dot
+        self.toolbar_right = tk.Frame(self.top_toolbar, bg=BG_SECONDARY)
+        self.toolbar_right.pack(side="right", padx=SP_4, fill="y")
+
+        self.case_badge_container = tk.Frame(self.toolbar_right, bg=BG_SECONDARY)
+        self.case_badge_container.pack(side="left", padx=(0, SP_3), pady=8)
+        self.case_badge = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEAL_MID, bg=BG_SECONDARY)
+        self.case_badge.pack(side="left")
+
+        # Live Status Indicator Dot & Label
+        self.status_box = tk.Frame(self.toolbar_right, bg=BG_SECONDARY)
+        self.status_box.pack(side="left", pady=10)
 
         self.dot_canvas = tk.Canvas(
-            status_left, width=14, height=14, bg=ABYSS, highlightthickness=0, bd=0
+            self.status_box, width=12, height=12, bg=BG_SECONDARY, highlightthickness=0, bd=0
         )
-        self.dot_canvas.pack(side="left", padx=(0, SP_2))
-        self.dot_item = self.dot_canvas.create_oval(3, 3, 11, 11, fill=CYAN, outline="")
+        self.dot_canvas.pack(side="left", padx=(0, 6))
+        self.dot_item = self.dot_canvas.create_oval(2, 2, 10, 10, fill=CYAN, outline="")
 
-        self.status_label = ttk.Label(
-            status_left,
+        self.status_label = tk.Label(
+            self.status_box,
             text="STATUS: IDLE",
-            foreground=TEXT_SECONDARY,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            fg=TEXT_SECONDARY,
+            bg=BG_SECONDARY,
+            font=(FONT_MONO_FALLBACK, FS_XS, "bold"),
         )
         self.status_label.pack(side="left")
 
-        # Center: Current Case Context
-        self.case_context_label = ttk.Label(
+        # Toolbar Bottom Divider
+        create_divider(self.workstation_area, color=BORDER).pack(fill="x", side="top")
+
+        # --- Bottom Status Bar (Height 26px, #050C0B, Top Border 1px #1B302D) ---
+        create_divider(self.workstation_area, color=BORDER).pack(fill="x", side="bottom")
+
+        self.status_bar = tk.Frame(self.workstation_area, height=26, bg=SIDEBAR_BG)
+        self.status_bar.pack(fill="x", side="bottom")
+        self.status_bar.pack_propagate(False)
+
+        # Left Status Bar Info
+        self.lbl_system_status = tk.Label(
             self.status_bar,
-            text="No active case selected",
-            foreground=TEXT_MUTED,
-            background=ABYSS,
-            font=FONT_SMALL,
+            text="SYSTEM STATUS: ONLINE | KNOWLEDGE BASE: 9 RULES ACTIVE",
+            fg=TEXT_MUTED,
+            bg=SIDEBAR_BG,
+            font=(FONT_MONO_FALLBACK, 8, "normal"),
+        )
+        self.lbl_system_status.pack(side="left", padx=SP_4)
+
+        # Center Status Bar Summary
+        self.case_context_label = tk.Label(
+            self.status_bar,
+            text="FORENSIC WORKSTATION | THREAT INTELLIGENCE ENGINE",
+            fg=TEXT_MUTED,
+            bg=SIDEBAR_BG,
+            font=(FONT_FALLBACK, 8, "normal"),
         )
         self.case_context_label.pack(side="left", expand=True)
 
-        # Right: Real-Time Clock
-        status_right = ttk.Frame(self.status_bar, style="Panel.TFrame")
-        status_right.pack(side="right", padx=SP_4, pady=SP_1)
-
-        self.clock_label = ttk.Label(
-            status_right,
+        # Right Real-time UTC Clock
+        self.clock_label = tk.Label(
+            self.status_bar,
             text="--:--:-- UTC",
-            foreground=TEXT_SECONDARY,
-            background=ABYSS,
-            font=FONT_MONO_SM,
+            fg=TEXT_SECONDARY,
+            bg=SIDEBAR_BG,
+            font=(FONT_MONO_FALLBACK, 9, "bold"),
         )
-        self.clock_label.pack(side="right")
+        self.clock_label.pack(side="right", padx=SP_4)
+
+        # --- Central Screen Container Area ---
+        self.content_container = ttk.Frame(self.workstation_area, style="TFrame")
+        self.content_container.pack(fill="both", expand=True)
 
     # -------------------------------------------------------------------------
-    # Screen Routing
+    # Screen Routing & Lifecycle
     # -------------------------------------------------------------------------
 
     def show_screen(self, route_name: str) -> None:
         """
-        Switch visible screen to the requested route.
-        Updates sidebar active indicators and mounts the frame in the content area.
+        Transition the workstation view to the requested route.
+        Resolves aliases for full backward compatibility, updates sidebar indicators,
+        and synchronizes breadcrumb labels.
         """
-        if route_name not in self._routes:
+        resolved_route = ROUTE_ALIASES.get(route_name, route_name)
+        if resolved_route not in self._routes:
             return
 
-        if self._current_screen_name == route_name and self._current_screen_widget:
-            if route_name in ("Evidence", "Analysis", "Reports") and hasattr(self._current_screen_widget, "set_case"):
+        # Avoid redundant re-instantiation
+        if self._current_screen_name == resolved_route and self._current_screen_widget:
+            if resolved_route in ("Evidence Explorer", "AI Analysis", "Reports") and hasattr(self._current_screen_widget, "set_case"):
                 self._current_screen_widget.set_case(self.selected_case_id)
             elif hasattr(self._current_screen_widget, "refresh_data"):
                 self._current_screen_widget.refresh_data()
             return
 
-        # Destroy or unpack previous screen
+        # Destroy previous screen cleanly
         if self._current_screen_widget is not None:
             self._current_screen_widget.destroy()
             self._current_screen_widget = None
 
         # Update sidebar active states
         for key, nav_item in self._nav_items.items():
-            nav_item.set_active(key == route_name)
+            nav_item.set_active(key == resolved_route)
 
-        # Instantiate and display the new frame
-        frame_class = self._routes[route_name]
-        if route_name == "Dashboard":
+        # Update Toolbar Breadcrumbs
+        category = ROUTE_CATEGORIES.get(resolved_route, "WORKSTATION")
+        self.lbl_breadcrumb_prefix.config(text=f"{category} /")
+        self.lbl_breadcrumb_active.config(text=resolved_route.upper())
+
+        # Instantiate requested screen widget
+        frame_class = self._routes[resolved_route]
+        if resolved_route == "Dashboard":
             self._current_screen_widget = frame_class(
                 self.content_container,
                 on_navigate_callback=self._handle_dashboard_navigate,
                 on_select_case_callback=self._handle_dashboard_select_case,
                 shell=self,
             )
-        elif route_name == "Cases":
+        elif resolved_route == "Case Investigation":
             self._current_screen_widget = frame_class(
                 self.content_container,
                 on_navigate=self.show_screen,
@@ -385,7 +504,7 @@ class AppShell(ttk.Frame):
                 on_open_case=self._handle_dashboard_select_case,
                 shell=self,
             )
-        elif route_name in ("Evidence", "Analysis", "Reports"):
+        elif resolved_route in ("Evidence Explorer", "AI Analysis", "Reports"):
             self._current_screen_widget = frame_class(
                 self.content_container,
                 case_id=self.selected_case_id,
@@ -396,45 +515,68 @@ class AppShell(ttk.Frame):
             self._current_screen_widget = frame_class(self.content_container, shell=self)
 
         self._current_screen_widget.pack(fill="both", expand=True)
-        self._current_screen_name = route_name
+        self._current_screen_name = resolved_route
+
+    # -------------------------------------------------------------------------
+    # Case Context & Navigation Callbacks
+    # -------------------------------------------------------------------------
 
     def _handle_case_created(self, case_id: int) -> None:
-        """Update case context when a new case is registered."""
+        """Update case context badge when a new case is registered."""
         self.selected_case_id = case_id
         case = get_case_by_id(case_id)
         if case:
             self.set_case_context(f"CASE: {case['case_number']} | {case['case_name']}")
+            self._update_toolbar_case_badge(case['case_number'])
 
     def _handle_dashboard_navigate(self, target: str) -> None:
         """Handle screen navigation requests initiated by the Dashboard."""
-        if target in ("create_case", "create", "Cases"):
-            self.show_screen("Cases")
-        elif target in self._routes:
-            self.show_screen(target)
+        self.show_screen(target)
 
     def _handle_dashboard_select_case(self, case_id: int) -> None:
-        """Handle case selection from Dashboard, setting case context and opening Evidence Detail."""
+        """Handle case selection from Dashboard, setting context and opening Evidence Explorer."""
         self.selected_case_id = case_id
         case = get_case_by_id(case_id)
         if case:
             self.set_case_context(f"CASE: {case['case_number']} | {case['case_name']}")
+            self._update_toolbar_case_badge(case['case_number'])
         else:
             self.set_case_context(f"CASE #{case_id}")
+            self._update_toolbar_case_badge(f"CASE #{case_id}")
+
         if (
-            self._current_screen_name == "Evidence"
+            self._current_screen_name == "Evidence Explorer"
             and self._current_screen_widget
             and hasattr(self._current_screen_widget, "set_case")
         ):
             self._current_screen_widget.set_case(case_id)
         else:
-            self.show_screen("Evidence")
+            self.show_screen("Evidence Explorer")
+
+    def _update_toolbar_case_badge(self, case_text: str) -> None:
+        """Refresh case pill in top toolbar."""
+        for child in self.case_badge_container.winfo_children():
+            child.destroy()
+        self.case_badge = create_soc_badge(
+            self.case_badge_container,
+            f"CASE: {case_text}" if not case_text.startswith("CASE") else case_text,
+            color=TEAL_MID,
+            bg=BG_SECONDARY,
+        )
+        self.case_badge.pack(side="left")
+
+    def _on_global_search(self, event=None) -> None:
+        """Handle global search input submission."""
+        query = self.entry_search.get().strip()
+        if query:
+            self.flash_alert(f"SEARCHING: '{query}'")
 
     # -------------------------------------------------------------------------
-    # Status Bar API
+    # Status Bar & Live Monitoring API
     # -------------------------------------------------------------------------
 
     def set_status(self, text: str) -> None:
-        """Update the left status text."""
+        """Update status bar or toolbar status text."""
         self.status_label.config(text=text.upper())
 
     def set_case_context(self, text: str) -> None:
@@ -442,31 +584,17 @@ class AppShell(ttk.Frame):
         self.case_context_label.config(text=text)
 
     def set_live_state(self, is_live: bool, file_path: str = "") -> None:
-        """
-        Switch status bar live monitoring dot between IDLE (CYAN) and LIVE (PINK).
-        Optionally display the monitored file path in the status label.
-        """
+        """Switch status bar live monitoring dot between IDLE (CYAN) and LIVE (CRITICAL)."""
         self._is_live_active = is_live
         if is_live:
-            self.dot_canvas.itemconfig(self.dot_item, fill=PINK)
-            self.set_status("LIVE MONITOR: WATCHING")
+            self.dot_canvas.itemconfig(self.dot_item, fill=CRITICAL)
+            self.status_label.config(text="LIVE MONITORING", fg=CRITICAL)
         else:
             self.dot_canvas.itemconfig(self.dot_item, fill=CYAN)
-            self.set_status("STATUS: IDLE")
+            self.status_label.config(text="STATUS: IDLE", fg=TEXT_SECONDARY)
 
     def flash_alert(self, message: str, duration_ms: int = 4000) -> None:
-        """
-        Briefly display an alert message in the status bar using PINK text,
-        then restore the previous status text after duration_ms milliseconds.
-
-        Parameters
-        ----------
-        message : str
-            Alert text to display (should be concise, single-line).
-        duration_ms : int
-            How long to hold the alert before restoring normal status.
-        """
-        # Capture current text so we can restore it
+        """Briefly display an alert message in the toolbar using CRITICAL text."""
         try:
             prev_text = self.status_label.cget("text")
             prev_fg = self.status_label.cget("foreground")
@@ -474,22 +602,13 @@ class AppShell(ttk.Frame):
             prev_text = "STATUS: IDLE"
             prev_fg = TEXT_SECONDARY
 
-        # Display the alert
-        self.status_label.config(
-            text=message[:80].upper(),
-            foreground=PINK,
-        )
-        self.dot_canvas.itemconfig(self.dot_item, fill=PINK)
+        self.status_label.config(text=message[:60].upper(), fg=CRITICAL)
+        self.dot_canvas.itemconfig(self.dot_item, fill=CRITICAL)
 
-        # Restore after duration
         def _restore():
             try:
                 if self.status_label.winfo_exists():
-                    self.status_label.config(
-                        text=prev_text,
-                        foreground=prev_fg,
-                    )
-                    # Only reset dot if not actively monitoring
+                    self.status_label.config(text=prev_text, foreground=prev_fg)
                     if not self._is_live_active:
                         self.dot_canvas.itemconfig(self.dot_item, fill=CYAN)
             except Exception:
@@ -521,12 +640,12 @@ class AppShell(ttk.Frame):
         top = self.winfo_toplevel()
         top.bind("<Control-d>", lambda e: self.show_screen("Dashboard"))
         top.bind("<Control-D>", lambda e: self.show_screen("Dashboard"))
-        top.bind("<Control-n>", lambda e: self.show_screen("Cases"))
-        top.bind("<Control-N>", lambda e: self.show_screen("Cases"))
+        top.bind("<Control-n>", lambda e: self.show_screen("Case Investigation"))
+        top.bind("<Control-N>", lambda e: self.show_screen("Case Investigation"))
         top.bind("<Control-r>", lambda e: self.show_screen("Reports"))
         top.bind("<Control-R>", lambda e: self.show_screen("Reports"))
-        top.bind("<Control-m>", lambda e: self.show_screen("Live Monitor"))
-        top.bind("<Control-M>", lambda e: self.show_screen("Live Monitor"))
+        top.bind("<Control-m>", lambda e: self.show_screen("Real-time Monitor"))
+        top.bind("<Control-M>", lambda e: self.show_screen("Real-time Monitor"))
         top.bind("<F11>", self._toggle_fullscreen)
         top.bind("<Escape>", self._exit_fullscreen)
 

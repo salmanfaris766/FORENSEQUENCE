@@ -1,53 +1,79 @@
 # =============================================================================
 # gui/theme.py
-# FORENSEQUENCE - Design System: Color Tokens, Typography, Spacing, Primitives
+# FORENSEQUENCE - Premium SOC Workstation Design System
 # =============================================================================
 
+from __future__ import annotations
+
 import tkinter as tk
+from typing import Optional
 import ttkbootstrap as ttk
 from ttkbootstrap.style import Style
 
 
 # =============================================================================
-# COLOR PALETTE
+# SOC COLOR TOKENS (Master Design Blueprint)
 # =============================================================================
 
-# -- Primary Bases --
-VOID    = "#0B0F2B"   # App background (deepest layer)
-ABYSS   = "#042142"   # Sidebar / secondary panels
-DEEP    = "#153C6A"   # Card base
-STEEL   = "#2475AC"   # Elevated surface
+APP_BG            = "#030707"
+BG_SECONDARY      = "#061211"
+SIDEBAR_BG        = "#050C0B"
+PANEL_BG          = "#0A1716"
+PANEL_ELEVATED    = "#0D1D1B"
+PANEL_HOVER       = "#122522"
 
-# -- Neon Accents --
-CYAN    = "#00F0FF"   # Primary actions, active states, live indicators
-ICE     = "#3DE0FC"   # Hover cyan
-PINK    = "#FF5CA8"   # Alerts, high severity, live indicators
-MAGENTA = "#E977F5"   # Selection / hover pink
-PURPLE  = "#BC6CFF"   # AI reasoning highlights
-PLUM    = "#733E85"   # Muted dividers
-PEACH   = "#FFB86B"   # Medium risk / warnings
+CYAN_GLOW         = "#5EEAD4"
+CYAN_NEON         = "#1FF2C9"
+MINT              = "#2DE3C8"
+CYAN              = "#22D3C5"
+TEAL              = "#14B8A6"
+TEAL_MID          = "#18A999"
+TEAL_DARK         = "#0E8A80"
+TEAL_DEEP         = "#0F6E66"
+TEAL_BG           = "#126B6B"
+TEAL_DEEP_BG      = "#0A3A3C"
 
-# -- Text --
-TEXT_PRIMARY   = "#EAF6FF"
-TEXT_SECONDARY = "#8FA3C7"
-TEXT_MUTED     = "#5A6B8C"
+TEXT_PRIMARY      = "#F2F7F6"
+TEXT_SECONDARY    = "#B0C2BF"
+TEXT_MUTED        = "#7B918D"
+TEXT_DISABLED     = "#50635F"
 
-# -- Risk Bands --
-RISK_LOW  = CYAN
-RISK_MED  = PEACH
-RISK_HIGH = PINK
+BORDER            = "#1B302D"
+BORDER_SECONDARY  = "#263F3B"
+BORDER_HOVER      = "#35635C"
+
+CRITICAL          = "#FF5B5B"
+HIGH              = "#F2A65A"
+MEDIUM            = "#E5D477"
+LOW               = "#2DE3C8"
+INFORMATIONAL     = "#7B918D"
+CHART_GRID        = "#142724"
+
+# Legacy Color Aliases (for backward compatibility across existing frames)
+VOID              = APP_BG
+ABYSS             = BG_SECONDARY
+DEEP              = PANEL_BG
+STEEL             = BORDER
+ICE               = CYAN_GLOW
+PINK              = CRITICAL
+MAGENTA           = CRITICAL
+PURPLE            = TEAL_MID
+PLUM              = BORDER
+PEACH             = HIGH
+RISK_LOW          = LOW
+RISK_MED          = MEDIUM
+RISK_HIGH         = HIGH
 
 
 # =============================================================================
 # TYPOGRAPHY
 # =============================================================================
 
-# Production-safe fallback families (swap when font files are added to assets/)
-FONT_DISPLAY  = "Orbitron"          # Headings / branding - swap when available
-FONT_UI       = "Rajdhani"          # UI labels / buttons - swap when available
-FONT_MONO     = "JetBrains Mono"    # Log output / code - swap when available
-FONT_FALLBACK = "Segoe UI"          # Safe Windows system fallback
-FONT_MONO_FALLBACK = "Courier New"  # Safe monospace fallback
+FONT_DISPLAY       = "Orbitron"
+FONT_UI            = "Segoe UI"
+FONT_MONO          = "JetBrains Mono"
+FONT_FALLBACK      = "Segoe UI"
+FONT_MONO_FALLBACK = "Consolas"
 
 # Font size scale (pt)
 FS_XS   = 8
@@ -86,202 +112,149 @@ SP_12 = 48
 # RADIUS SCALE (pixels)
 # =============================================================================
 
-RADIUS_SM = 8
-RADIUS_MD = 14
-RADIUS_LG = 20
+RADIUS_SM = 6
+RADIUS_MD = 8
+RADIUS_LG = 12
 
 
 # =============================================================================
 # APPLY THEME
-# Configure ttkbootstrap Style with FORENSEQUENCE cyberpunk dark tokens.
+# Configure ttkbootstrap Style with SOC Workstation tokens.
 # =============================================================================
 
 def apply_theme(app: ttk.Window) -> None:
     """
-    Apply the FORENSEQUENCE dark cyberpunk theme to a ttkbootstrap Window.
+    Apply the FORENSEQUENCE SOC Workstation theme to a ttkbootstrap Window.
     Configures tk/ttk widget styles globally so every widget inherits correctly.
     """
     style = app.style
 
     # -- Root window background --
-    app.configure(background=VOID)
+    app.configure(background=APP_BG)
 
     # -- TFrame --
-    style.configure("TFrame", background=VOID, borderwidth=0, relief="flat")
-    style.configure("Card.TFrame", background=DEEP, borderwidth=0, relief="flat")
-    style.configure("Panel.TFrame", background=ABYSS, borderwidth=0, relief="flat")
+    style.configure("TFrame", background=APP_BG, borderwidth=0, relief="flat")
+    style.configure("Card.TFrame", background=PANEL_BG, borderwidth=0, relief="flat")
+    style.configure("Panel.TFrame", background=SIDEBAR_BG, borderwidth=0, relief="flat")
 
     # -- TLabel --
-    style.configure(
-        "TLabel",
-        background=VOID,
-        foreground=TEXT_PRIMARY,
-        font=FONT_BODY,
-        borderwidth=0,
-    )
-    style.configure(
-        "Card.TLabel",
-        background=DEEP,
-        foreground=TEXT_PRIMARY,
-        font=FONT_BODY,
-        borderwidth=0,
-    )
-    style.configure(
-        "Panel.TLabel",
-        background=ABYSS,
-        foreground=TEXT_PRIMARY,
-        font=FONT_BODY,
-        borderwidth=0,
-    )
-    style.configure(
-        "Secondary.TLabel",
-        background=VOID,
-        foreground=TEXT_SECONDARY,
-        font=FONT_BODY,
-        borderwidth=0,
-    )
-    style.configure(
-        "Muted.TLabel",
-        background=VOID,
-        foreground=TEXT_MUTED,
-        font=FONT_SMALL,
-        borderwidth=0,
-    )
-    style.configure(
-        "Heading.TLabel",
-        background=VOID,
-        foreground=TEXT_PRIMARY,
-        font=FONT_HEADING,
-        borderwidth=0,
-    )
-    style.configure(
-        "Section.TLabel",
-        background=VOID,
-        foreground=CYAN,
-        font=FONT_SECTION,
-        borderwidth=0,
-    )
+    style.configure("TLabel", background=APP_BG, foreground=TEXT_PRIMARY, font=FONT_BODY, borderwidth=0)
+    style.configure("Card.TLabel", background=PANEL_BG, foreground=TEXT_PRIMARY, font=FONT_BODY, borderwidth=0)
+    style.configure("Panel.TLabel", background=SIDEBAR_BG, foreground=TEXT_PRIMARY, font=FONT_BODY, borderwidth=0)
+    style.configure("Secondary.TLabel", background=APP_BG, foreground=TEXT_SECONDARY, font=FONT_BODY, borderwidth=0)
+    style.configure("Muted.TLabel", background=APP_BG, foreground=TEXT_MUTED, font=FONT_SMALL, borderwidth=0)
+    style.configure("Heading.TLabel", background=APP_BG, foreground=TEXT_PRIMARY, font=FONT_HEADING, borderwidth=0)
+    style.configure("Section.TLabel", background=APP_BG, foreground=CYAN, font=FONT_SECTION, borderwidth=0)
 
     # -- TButton --
     style.configure(
         "TButton",
-        background=DEEP,
+        background=PANEL_ELEVATED,
         foreground=TEXT_PRIMARY,
         borderwidth=1,
-        focuscolor=CYAN,
+        bordercolor=BORDER,
+        focuscolor=MINT,
         font=FONT_BODY,
     )
     style.map(
         "TButton",
-        background=[("active", STEEL)],
-        foreground=[("active", CYAN)],
+        background=[("active", PANEL_HOVER)],
+        foreground=[("active", MINT)],
     )
 
     # -- TEntry --
     style.configure(
         "TEntry",
-        fieldbackground=ABYSS,
+        fieldbackground=PANEL_BG,
         foreground=TEXT_PRIMARY,
         insertcolor=CYAN,
         borderwidth=1,
+        bordercolor=BORDER,
         relief="flat",
         font=FONT_BODY,
     )
     style.map(
         "TEntry",
-        fieldbackground=[("focus", DEEP)],
+        fieldbackground=[("focus", PANEL_BG)],
         bordercolor=[("focus", CYAN)],
     )
 
     # -- Treeview --
     style.configure(
         "Treeview",
-        background=ABYSS,
-        fieldbackground=ABYSS,
+        background=PANEL_BG,
+        fieldbackground=PANEL_BG,
         foreground=TEXT_PRIMARY,
         rowheight=28,
         borderwidth=0,
+        highlightthickness=0,
         font=FONT_BODY,
     )
     style.configure(
         "Treeview.Heading",
-        background=DEEP,
-        foreground=CYAN,
+        background=PANEL_ELEVATED,
+        foreground=MINT,
         borderwidth=0,
+        relief="flat",
         font=FONT_SECTION,
     )
     style.map(
         "Treeview",
-        background=[("selected", STEEL)],
-        foreground=[("selected", CYAN)],
+        background=[("selected", PANEL_HOVER)],
+        foreground=[("selected", MINT)],
     )
 
     # -- TScrollbar --
     style.configure(
         "TScrollbar",
-        background=ABYSS,
-        troughcolor=VOID,
+        background=PANEL_BG,
+        troughcolor=APP_BG,
         arrowcolor=TEXT_MUTED,
         borderwidth=0,
     )
     style.map(
         "TScrollbar",
-        background=[("active", PLUM)],
+        background=[("active", TEAL_MID)],
     )
 
     # -- TNotebook --
     style.configure(
         "TNotebook",
-        background=VOID,
+        background=APP_BG,
         borderwidth=0,
         tabmargins=0,
     )
     style.configure(
         "TNotebook.Tab",
-        background=ABYSS,
+        background=BG_SECONDARY,
         foreground=TEXT_SECONDARY,
         padding=(SP_4, SP_2),
         font=FONT_BODY,
     )
     style.map(
         "TNotebook.Tab",
-        background=[("selected", DEEP)],
-        foreground=[("selected", CYAN)],
+        background=[("selected", PANEL_BG)],
+        foreground=[("selected", MINT)],
     )
 
     # -- TCombobox --
     style.configure(
         "TCombobox",
-        fieldbackground=ABYSS,
-        background=ABYSS,
+        fieldbackground=PANEL_BG,
+        background=PANEL_BG,
         foreground=TEXT_PRIMARY,
         arrowcolor=CYAN,
-        selectbackground=DEEP,
-        selectforeground=CYAN,
+        selectbackground=PANEL_HOVER,
+        selectforeground=MINT,
         font=FONT_BODY,
     )
 
     # -- TCheckbutton / TRadiobutton --
-    style.configure(
-        "TCheckbutton",
-        background=VOID,
-        foreground=TEXT_PRIMARY,
-        font=FONT_BODY,
-    )
-    style.configure(
-        "TRadiobutton",
-        background=VOID,
-        foreground=TEXT_PRIMARY,
-        font=FONT_BODY,
-    )
+    style.configure("TCheckbutton", background=APP_BG, foreground=TEXT_PRIMARY, font=FONT_BODY)
+    style.configure("TRadiobutton", background=APP_BG, foreground=TEXT_PRIMARY, font=FONT_BODY)
 
     # -- TProgressbar --
-    style.configure(
-        "TProgressbar",
-        background=CYAN,
-        troughcolor=ABYSS,
-        borderwidth=0,
-    )
+    style.configure("TProgressbar", background=MINT, troughcolor=PANEL_BG, borderwidth=0)
 
 
 # =============================================================================
@@ -290,17 +263,20 @@ def apply_theme(app: ttk.Window) -> None:
 
 def risk_color(score: int) -> str:
     """
-    Return the neon accent color corresponding to a 0-100 forensic risk score.
-    0-33  -> RISK_LOW  (CYAN)
-    34-66 -> RISK_MED  (PEACH)
-    67-100 -> RISK_HIGH (PINK)
+    Return the SOC severity color corresponding to a 0-100 forensic risk score.
+    0-33   -> LOW (MINT #2DE3C8)
+    34-66  -> MEDIUM (#E5D477)
+    67-84  -> HIGH (#F2A65A)
+    85-100 -> CRITICAL (#FF5B5B)
     """
     if score <= 33:
-        return RISK_LOW
+        return LOW
     elif score <= 66:
-        return RISK_MED
+        return MEDIUM
+    elif score <= 84:
+        return HIGH
     else:
-        return RISK_HIGH
+        return CRITICAL
 
 
 def risk_label(score: int) -> str:
@@ -311,8 +287,10 @@ def risk_label(score: int) -> str:
         return "LOW"
     elif score <= 66:
         return "MEDIUM"
-    else:
+    elif score <= 84:
         return "HIGH"
+    else:
+        return "CRITICAL"
 
 
 # =============================================================================
@@ -360,19 +338,15 @@ def _draw_glow_border(
     x2: int, y2: int,
     radius: int,
     glow_color: str,
-    layers: int = 3,
+    layers: int = 2,
     **kwargs,
 ) -> None:
-    """
-    Simulate a neon outer glow by drawing progressively larger, more-transparent
-    rounded rectangle outlines behind the main border.
-    """
+    """Draw subtle border glow outline around panel perimeter."""
     r, g, b = _hex_to_rgb(glow_color)
     for i in range(layers, 0, -1):
-        spread = i * 2
-        # Approximate alpha dimming via color blending toward VOID background
-        factor = (layers - i + 1) / (layers + 1)
-        vr, vg, vb = _hex_to_rgb(VOID)
+        spread = i
+        factor = (layers - i + 1) / (layers + 2)
+        vr, vg, vb = _hex_to_rgb(APP_BG)
         br = int(r * factor + vr * (1 - factor))
         bg_ = int(g * factor + vg * (1 - factor))
         bb = int(b * factor + vb * (1 - factor))
@@ -390,83 +364,69 @@ def _draw_glow_border(
 
 
 # =============================================================================
-# UI PRIMITIVE FACTORIES
+# SOC WORKSTATION UI PRIMITIVE FACTORIES
 # =============================================================================
 
-def create_glass_frame(
+def create_soc_panel(
     parent,
-    width: int = 400,
-    height: int = 200,
-    radius: int = RADIUS_MD,
-    border_color: str = CYAN,
-    fill_color: str = DEEP,
-    alpha_hint: float = 0.35,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    bg: str = PANEL_BG,
+    border_color: str = BORDER,
+    radius: int = RADIUS_SM,
+    **kwargs,
 ) -> tk.Canvas:
     """
-    Create a Canvas-based glassmorphism panel.
-
-    Renders a rounded rectangle with:
-      - A dark translucent fill (DEEP or custom fill_color)
-      - A 1px neon hairline border
-      - Layered glow simulation around the border
-
-    Returns the Canvas widget. Attach child widgets using canvas.create_window().
-    A convenience attribute canvas.inner_frame (ttk.Frame) is placed inside
-    the canvas so callers can pack/grid normal widgets into it.
-    Automatically responds to geometry changes to dynamically stretch.
+    Create a SOC workstation panel widget with rounded borders and inner frame.
+    Supports dynamic resizing via <Configure> and backward-compatible parameters.
     """
+    if "fill_color" in kwargs:
+        bg = kwargs["fill_color"]
+    if "border_color" in kwargs:
+        border_color = kwargs["border_color"]
+
+    init_w = width if width is not None and width > 0 else 400
+    init_h = height if height is not None and height > 0 else 200
+
     canvas_bg = _get_parent_bg(parent)
     canvas = tk.Canvas(
         parent,
-        width=width,
-        height=height,
+        width=init_w,
+        height=init_h,
         bg=canvas_bg,
         highlightthickness=0,
         bd=0,
     )
 
-    pad = 6  # Glow bleed padding
+    pad = 2
 
-    # Inner frame for child widgets
     inner = ttk.Frame(canvas, style="Card.TFrame")
-    inner._custom_bg = fill_color
+    inner._custom_bg = bg
     canvas.inner_frame = inner
 
     win_id = canvas.create_window(
-        width // 2, height // 2,
+        init_w // 2, init_h // 2,
         window=inner,
-        width=max(1, width - (pad * 2) - 4),
-        height=max(1, height - (pad * 2) - 4),
+        width=max(1, init_w - (pad * 2) - 2),
+        height=max(1, init_h - (pad * 2) - 2),
     )
 
     def _render(w: int, h: int):
-        canvas.delete("glass_shape")
-        if w <= (pad * 2) + 4 or h <= (pad * 2) + 4:
+        canvas.delete("panel_shape")
+        if w <= (pad * 2) + 2 or h <= (pad * 2) + 2:
             return
 
-        # Glow layers
-        _draw_glow_border(
-            canvas,
-            pad, pad,
-            w - pad, h - pad,
-            radius,
-            glow_color=border_color,
-            layers=3,
-            tags="glass_shape",
-        )
-
-        # Glass fill
+        # Background fill
         _draw_rounded_rect(
             canvas,
             pad, pad,
             w - pad, h - pad,
             radius,
-            fill=fill_color,
+            fill=bg,
             outline="",
-            tags="glass_shape",
+            tags="panel_shape",
         )
-
-        # Hairline neon border
+        # Hairline border outline
         _draw_rounded_rect(
             canvas,
             pad, pad,
@@ -475,20 +435,19 @@ def create_glass_frame(
             fill="",
             outline=border_color,
             width=1,
-            tags="glass_shape",
+            tags="panel_shape",
         )
-
-        canvas.tag_lower("glass_shape")
+        canvas.tag_lower("panel_shape")
         canvas.coords(win_id, w // 2, h // 2)
         canvas.itemconfigure(
             win_id,
-            width=max(1, w - (pad * 2) - 4),
-            height=max(1, h - (pad * 2) - 4),
+            width=max(1, w - (pad * 2) - 2),
+            height=max(1, h - (pad * 2) - 2),
         )
 
-    _render(width, height)
+    _render(init_w, init_h)
 
-    last_dims = [width, height]
+    last_dims = [init_w, init_h]
 
     def _on_canvas_configure(event):
         if event.widget == canvas:
@@ -498,33 +457,30 @@ def create_glass_frame(
                 _render(event.width, event.height)
 
     canvas.bind("<Configure>", _on_canvas_configure)
-    canvas.inner_frame = inner
-
     return canvas
 
 
-def create_neon_button(
+def create_soc_button(
     parent,
     text: str,
     command=None,
     variant: str = "primary",
-    bg: str = None,
+    bg: Optional[str] = None,
 ) -> tk.Canvas:
     """
-    Create a Canvas-based neon-styled button.
+    Create a Canvas-based SOC workstation button.
 
     Variants:
-      primary   - Filled CYAN background, VOID text
-      secondary - VOID fill, CYAN outline + CYAN text
-      danger    - VOID fill, PINK outline + PINK text
-      ghost     - Transparent, TEXT_SECONDARY text, no border drawn
+      primary   - MINT (#2DE3C8) fill, APP_BG text
+      secondary - PANEL_ELEVATED (#0D1D1B) fill, BORDER_SECONDARY border, TEXT_PRIMARY text
+      danger    - PANEL_BG fill, CRITICAL (#FF5B5B) border + text
+      ghost     - Transparent fill, TEXT_MUTED text, no border
     """
     pad_x = SP_4
     pad_y = SP_2
     radius = RADIUS_SM
-    font_spec = FONT_SECTION
+    font_spec = (FONT_FALLBACK, FS_BASE, "bold")
 
-    # Measure text to auto-size the button
     tmp = tk.Label(parent, text=text, font=font_spec)
     tmp.update_idletasks()
     tw = tmp.winfo_reqwidth()
@@ -535,10 +491,10 @@ def create_neon_button(
     btn_h = th + pad_y * 2 + 4
 
     variant_styles = {
-        "primary":   {"fill": CYAN,  "border": CYAN,  "fg": VOID,         "hover_border": ICE,  "hover_fill": ICE},
-        "secondary": {"fill": VOID,  "border": CYAN,  "fg": CYAN,         "hover_border": ICE,  "hover_fill": DEEP},
-        "danger":    {"fill": VOID,  "border": PINK,  "fg": PINK,         "hover_border": MAGENTA, "hover_fill": DEEP},
-        "ghost":     {"fill": VOID,  "border": "",    "fg": TEXT_SECONDARY,"hover_border": "", "hover_fill": DEEP},
+        "primary":   {"fill": MINT,           "border": MINT,             "fg": APP_BG,         "hover_fill": CYAN_NEON,    "hover_border": CYAN_NEON,    "hover_fg": APP_BG},
+        "secondary": {"fill": PANEL_ELEVATED, "border": BORDER_SECONDARY, "fg": TEXT_PRIMARY,   "hover_fill": PANEL_HOVER,  "hover_border": BORDER_HOVER, "hover_fg": TEXT_PRIMARY},
+        "danger":    {"fill": PANEL_BG,       "border": CRITICAL,         "fg": CRITICAL,       "hover_fill": PANEL_HOVER,  "hover_border": CRITICAL,     "hover_fg": CRITICAL},
+        "ghost":     {"fill": "",             "border": "",               "fg": TEXT_MUTED,     "hover_fill": PANEL_HOVER,  "hover_border": "",           "hover_fg": TEXT_PRIMARY},
     }
     s = variant_styles.get(variant, variant_styles["secondary"])
 
@@ -555,14 +511,14 @@ def create_neon_button(
 
     def _draw(fill, border, fg):
         canvas.delete("all")
-        if variant != "ghost":
+        if fill or border:
             _draw_rounded_rect(
                 canvas,
                 1, 1, btn_w - 1, btn_h - 1,
                 radius,
-                fill=fill,
-                outline=border,
-                width=1,
+                fill=fill if fill else "",
+                outline=border if border else "",
+                width=1 if border else 0,
             )
         canvas.create_text(
             btn_w // 2, btn_h // 2,
@@ -570,13 +526,12 @@ def create_neon_button(
             fill=fg,
             font=font_spec,
             anchor="center",
-            tags="btn_text",
         )
 
     _draw(s["fill"], s["border"], s["fg"])
 
     def on_enter(_):
-        _draw(s["hover_fill"], s["hover_border"], s["fg"] if variant != "primary" else VOID)
+        _draw(s["hover_fill"], s["hover_border"], s["hover_fg"])
 
     def on_leave(_):
         _draw(s["fill"], s["border"], s["fg"])
@@ -592,81 +547,25 @@ def create_neon_button(
     return canvas
 
 
-def create_section_header(parent, text: str) -> ttk.Label:
+def create_soc_entry(parent, placeholder: str = "", width: Optional[int] = None) -> tk.Entry:
     """
-    Return a tracked-uppercase section label styled in CYAN with the heading font.
+    Return a tk.Entry styled with SOC Workstation tokens (PANEL_BG fill, BORDER outline, CYAN focus highlight).
     """
-    label = ttk.Label(
-        parent,
-        text=text.upper(),
-        foreground=CYAN,
-        background=_get_parent_bg(parent),
-        font=(FONT_FALLBACK, FS_SM, "bold"),
-        anchor="w",
-    )
-    return label
+    entry_kwargs = {
+        "bg": PANEL_BG,
+        "fg": TEXT_PRIMARY,
+        "insertbackground": CYAN,
+        "relief": "flat",
+        "bd": 0,
+        "font": FONT_BODY,
+        "highlightthickness": 1,
+        "highlightbackground": BORDER,
+        "highlightcolor": CYAN,
+    }
+    if width is not None:
+        entry_kwargs["width"] = width
 
-
-def create_badge(parent, text: str, color: str, bg: str = None) -> tk.Canvas:
-    """
-    Create a pill-shaped badge with a colored border and matching text.
-    Used for evidence type tags and severity indicators.
-    """
-    font_spec = (FONT_FALLBACK, FS_XS, "bold")
-    tmp = tk.Label(parent, text=text, font=font_spec)
-    tmp.update_idletasks()
-    tw = tmp.winfo_reqwidth()
-    th = tmp.winfo_reqheight()
-    tmp.destroy()
-
-    pad_x = 10
-    pad_y = 3
-    w = tw + pad_x * 2
-    h = th + pad_y * 2
-    radius = h // 2
-
-    canvas_bg = bg if bg is not None else _get_parent_bg(parent)
-    canvas = tk.Canvas(
-        parent,
-        width=w,
-        height=h,
-        bg=canvas_bg,
-        highlightthickness=0,
-        bd=0,
-    )
-
-    # Blended fill: color mixed toward VOID for subtle tint
-    r, g, b = _hex_to_rgb(color)
-    vr, vg, vb = _hex_to_rgb(VOID)
-    factor = 0.18
-    fr = int(r * factor + vr * (1 - factor))
-    fg_ = int(g * factor + vg * (1 - factor))
-    fb = int(b * factor + vb * (1 - factor))
-    fill_tint = f"#{fr:02x}{fg_:02x}{fb:02x}"
-
-    _draw_rounded_rect(canvas, 1, 1, w - 1, h - 1, radius, fill=fill_tint, outline=color, width=1)
-    canvas.create_text(w // 2, h // 2, text=text, fill=color, font=font_spec, anchor="center")
-
-    return canvas
-
-
-def create_styled_entry(parent, placeholder: str = "") -> tk.Entry:
-    """
-    Return a tk.Entry styled with FORENSEQUENCE dark tokens and CYAN focus glow.
-    A placeholder is simulated via FocusIn/FocusOut bindings.
-    """
-    entry = tk.Entry(
-        parent,
-        bg=ABYSS,
-        fg=TEXT_PRIMARY,
-        insertbackground=CYAN,
-        relief="flat",
-        bd=0,
-        font=FONT_BODY,
-        highlightthickness=1,
-        highlightbackground=PLUM,
-        highlightcolor=CYAN,
-    )
+    entry = tk.Entry(parent, **entry_kwargs)
 
     if placeholder:
         entry.insert(0, placeholder)
@@ -688,7 +587,61 @@ def create_styled_entry(parent, placeholder: str = "") -> tk.Entry:
     return entry
 
 
-def create_divider(parent, color: str = PLUM, orient: str = "horizontal") -> tk.Canvas:
+def create_soc_badge(parent, text: str, color: str = TEAL, bg: Optional[str] = None) -> tk.Canvas:
+    """
+    Create a pill-shaped SOC status badge.
+    """
+    font_spec = (FONT_FALLBACK, FS_XS, "bold")
+    tmp = tk.Label(parent, text=text, font=font_spec)
+    tmp.update_idletasks()
+    tw = tmp.winfo_reqwidth()
+    th = tmp.winfo_reqheight()
+    tmp.destroy()
+
+    pad_x = 8
+    pad_y = 2
+    w = tw + pad_x * 2
+    h = th + pad_y * 2
+    radius = h // 2
+
+    canvas_bg = bg if bg is not None else _get_parent_bg(parent)
+    canvas = tk.Canvas(
+        parent,
+        width=w,
+        height=h,
+        bg=canvas_bg,
+        highlightthickness=0,
+        bd=0,
+    )
+
+    r, g, b = _hex_to_rgb(color)
+    vr, vg, vb = _hex_to_rgb(APP_BG)
+    factor = 0.15
+    fr = int(r * factor + vr * (1 - factor))
+    fg_ = int(g * factor + vg * (1 - factor))
+    fb = int(b * factor + vb * (1 - factor))
+    fill_tint = f"#{fr:02x}{fg_:02x}{fb:02x}"
+
+    _draw_rounded_rect(canvas, 1, 1, w - 1, h - 1, radius, fill=fill_tint, outline=color, width=1)
+    canvas.create_text(w // 2, h // 2, text=text, fill=color, font=font_spec, anchor="center")
+    return canvas
+
+
+def create_section_header(parent, text: str) -> ttk.Label:
+    """
+    Return an 11px uppercase tracked #7B918D label.
+    """
+    return ttk.Label(
+        parent,
+        text=text.upper(),
+        foreground=TEXT_MUTED,
+        background=_get_parent_bg(parent),
+        font=(FONT_FALLBACK, FS_XS + 1, "bold"),
+        anchor="w",
+    )
+
+
+def create_divider(parent, color: str = BORDER, orient: str = "horizontal") -> tk.Canvas:
     """
     Return a 1px horizontal or vertical separator line canvas widget.
     """
@@ -712,6 +665,16 @@ def create_divider(parent, color: str = PLUM, orient: str = "horizontal") -> tk.
 
 
 # =============================================================================
+# BACKWARD COMPATIBILITY FACTORY ALIASES
+# =============================================================================
+
+create_glass_frame  = create_soc_panel
+create_neon_button  = create_soc_button
+create_styled_entry = create_soc_entry
+create_badge        = create_soc_badge
+
+
+# =============================================================================
 # INTERNAL UTILITIES
 # =============================================================================
 
@@ -719,7 +682,7 @@ def _get_parent_bg(parent) -> str:
     """
     Attempt to retrieve the background color of a parent widget.
     Traverses parent hierarchy looking for _custom_bg or configured background.
-    Falls back to VOID if unavailable.
+    Falls back to APP_BG if unavailable.
     """
     curr = parent
     while curr is not None:
@@ -732,7 +695,8 @@ def _get_parent_bg(parent) -> str:
         except Exception:
             pass
         curr = getattr(curr, "master", None)
-    return VOID
+    return APP_BG
+
 
 # =============================================================================
 # TOOLTIP HELPER
@@ -742,101 +706,69 @@ class CyberpunkTooltip:
     """Floating tooltip with cyberpunk glass effect.
 
     The tooltip appears near the mouse cursor when the user hovers over a widget.
-    It uses a semi‑transparent dark background with a cyan hairline border.
+    It uses a semi-transparent dark background with a cyan hairline border.
     The tooltip is automatically destroyed when the mouse leaves the widget.
     """
 
     def __init__(self, widget: tk.Widget, text: str, *, delay: int = 400):
         self.widget = widget
         self.text = text
-        self.delay = delay  # milliseconds before showing tooltip
-        self.tooltip: tk.Toplevel | None = None
-        self._after_id: str | None = None
+        self.delay = delay
+        self.tooltip: Optional[tk.Toplevel] = None
+        self._after_id: Optional[str] = None
         widget.bind("<Enter>", self._schedule_show)
-        widget.bind("<Leave>", self._hide_tooltip)
-        widget.bind("<Motion>", self._move_tooltip)
+        widget.bind("<Leave>", self._hide)
+        widget.bind("<ButtonPress>", self._hide)
 
-    def _schedule_show(self, _event):
-        self._cancel_scheduled()
-        self._after_id = self.widget.after(self.delay, self._show_tooltip)
+    def _schedule_show(self, event=None) -> None:
+        self._cancel()
+        self._after_id = self.widget.after(self.delay, self._show)
 
-    def _cancel_scheduled(self):
+    def _cancel(self) -> None:
         if self._after_id:
             self.widget.after_cancel(self._after_id)
             self._after_id = None
 
-    def _show_tooltip(self):
-        if self.tooltip:
+    def _show(self) -> None:
+        if self.tooltip or not self.text:
             return
-        # Create tooltip window
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 5
+
         self.tooltip = tk.Toplevel(self.widget)
         self.tooltip.wm_overrideredirect(True)
-        self.tooltip.wm_attributes("-topmost", True)
-        # Styling: dark semi‑transparent background with cyan border
+        self.tooltip.wm_geometry(f"+{x}+{y}")
+        self.tooltip.configure(bg=PANEL_BG)
+
         frame = tk.Frame(
             self.tooltip,
-            bg=VOID,
-            highlightbackground=CYAN,
+            bg=PANEL_BG,
             highlightthickness=1,
-            padx=SP_2,
-            pady=SP_1,
+            highlightbackground=BORDER,
+            bd=0,
+            padx=8,
+            pady=4,
         )
         frame.pack()
+
         label = tk.Label(
             frame,
             text=self.text,
-            bg=VOID,
+            bg=PANEL_BG,
             fg=TEXT_PRIMARY,
             font=FONT_SMALL,
             justify="left",
-            anchor="w",
+            wraplength=300,
         )
         label.pack()
-        self._position_tooltip()
 
-    def _position_tooltip(self):
-        if not self.tooltip:
-            return
-        # Position near mouse, avoid going off‑screen
-        x = self.widget.winfo_pointerx() + 12
-        y = self.widget.winfo_pointery() + 12
-        screen_w = self.widget.winfo_screenwidth()
-        screen_h = self.widget.winfo_screenheight()
-        self.tooltip.update_idletasks()
-        w = self.tooltip.winfo_width()
-        h = self.tooltip.winfo_height()
-        if x + w > screen_w:
-            x = screen_w - w - 4
-        if y + h > screen_h:
-            y = screen_h - h - 4
-        self.tooltip.wm_geometry(f"+{x}+{y}")
-
-    def _move_tooltip(self, _event):
-        if self.tooltip:
-            self._position_tooltip()
-
-    def _hide_tooltip(self, _event):
-        self._cancel_scheduled()
+    def _hide(self, event=None) -> None:
+        self._cancel()
         if self.tooltip:
             self.tooltip.destroy()
             self.tooltip = None
 
-def bind_tooltip(widget: tk.Widget, text: str, *, delay: int = 400) -> None:
-    """Convenience function to bind a CyberpunkTooltip to a widget.
 
-    Parameters
-    ----------
-    widget: tk.Widget
-        The target widget.
-    text: str
-        Tooltip text.
-    delay: int, optional
-        Milliseconds to wait before showing the tooltip (default 400).
-    """
-    CyberpunkTooltip(widget, text, delay=delay)
-
-# End of tooltip helper
-
-# =============================================================================
-# END OF FILE
-# =============================================================================
+def bind_tooltip(widget: tk.Widget, text: str, *, delay: int = 400) -> CyberpunkTooltip:
+    """Convenience helper to attach a CyberpunkTooltip to any widget."""
+    return CyberpunkTooltip(widget, text, delay=delay)
