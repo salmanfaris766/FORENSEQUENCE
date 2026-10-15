@@ -13,6 +13,8 @@ import ttkbootstrap as ttk
 
 from gui.theme import (
     APP_BG,
+    BG_DEEP,
+    CARD_BG,
     BG_SECONDARY,
     SIDEBAR_BG,
     PANEL_BG,
@@ -24,6 +26,7 @@ from gui.theme import (
     TEAL,
     TEAL_MID,
     TEAL_DARK,
+    TEXT_MAIN,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     TEXT_MUTED,
@@ -45,6 +48,8 @@ from gui.theme import (
     SP_3,
     SP_4,
     SP_6,
+    draw_squircle,
+    LiquidButton,
     create_soc_badge,
     create_soc_entry,
     create_divider,
@@ -90,33 +95,35 @@ ROUTE_CATEGORIES: Dict[str, str] = {
 
 
 # =============================================================================
-# ANIMATED WAVE BACKGROUND
+# FLUID DRIFTING ORB BACKGROUND (60 FPS NATIVE CANVAS)
 # =============================================================================
 
-class AnimatedWaveBackground(tk.Canvas):
+class FluidBackground(tk.Canvas):
     """
-    Animated flowing background rendering overlapping sine wave polygons in dark teal
-    (#04100F, #061514, #0A2422) over a pure black (#000000) canvas.
-    Animates smoothly via after(30, self._animate) without CPU overhead.
+    Animated flowing background rendering 4 massive, soft drifting ovals
+    (#061C1A, #041211, #05221F, #031413) over deep obsidian (#020505).
+    Drifts smoothly across the screen using math.sin/cos and time variables,
+    updating via root.after(30) to create a liquid wave effect behind the UI.
     """
 
     def __init__(self, parent: tk.Misc, **kwargs):
         super().__init__(
             parent,
-            bg="#000000",
+            bg=BG_DEEP,
             highlightthickness=0,
             bd=0,
             **kwargs,
         )
         self.time_offset = 0.0
         self._anim_id: Optional[str] = None
-        self._poly_ids = []
+        self._orb_ids: list = []
 
-        # Wave layer specs: (fill_color, line_color, base_y_ratio, amp_ratio, freq, speed, phase)
-        self._wave_specs = [
-            ("#062523", "#0E8A80", 0.52, 0.12, 0.004, 0.015, 0.0),
-            ("#0A3936", "#14B8A6", 0.68, 0.10, 0.005, 0.022, 1.8),
-            ("#0F4E4A", "#22D3C5", 0.84, 0.08, 0.006, 0.028, 3.5),
+        # (fill_color, center_x_ratio, center_y_ratio, rx_ratio, ry_ratio, amp_x, amp_y, speed_x, speed_y, phase)
+        self._orb_specs = [
+            ("#061C1A", 0.22, 0.28, 0.40, 0.36, 110.0, 80.0, 0.016, 0.012, 0.0),
+            ("#041211", 0.78, 0.32, 0.44, 0.40, 120.0, 90.0, 0.018, 0.015, 1.8),
+            ("#05221F", 0.38, 0.76, 0.42, 0.38, 130.0, 75.0, 0.014, 0.018, 3.4),
+            ("#031413", 0.84, 0.82, 0.36, 0.34, 95.0, 85.0, 0.022, 0.014, 5.0),
         ]
 
         self.bind("<Destroy>", self._on_destroy)
@@ -132,27 +139,22 @@ class AnimatedWaveBackground(tk.Canvas):
         if w > 10 and h > 10:
             self.time_offset += 1.0
 
-            step_px = max(15, w // 45)
-            x_pts = list(range(0, w + step_px, step_px))
-            if x_pts[-1] < w:
-                x_pts.append(w)
+            for i, (col, bx_r, by_r, rx_r, ry_r, amp_x, amp_y, sp_x, sp_y, ph) in enumerate(self._orb_specs):
+                t_x = self.time_offset * sp_x + ph
+                t_y = self.time_offset * sp_y + ph * 0.7
+                cx = w * bx_r + amp_x * math.sin(t_x)
+                cy = h * by_r + amp_y * math.cos(t_y)
+                rx = max(100.0, w * rx_r)
+                ry = max(80.0, h * ry_r)
 
-            for i, (fill_c, line_c, base_r, amp_r, freq, speed, phase) in enumerate(self._wave_specs):
-                base_y = h * base_r
-                amp = max(18.0, h * amp_r)
-                t = self.time_offset * speed + phase
+                x1, y1 = cx - rx, cy - ry
+                x2, y2 = cx + rx, cy + ry
 
-                coords = [0, h]
-                for x in x_pts:
-                    y = base_y + amp * math.sin(x * freq + t)
-                    coords.extend([x, y])
-                coords.extend([w, h])
-
-                if i >= len(self._poly_ids):
-                    pid = self.create_polygon(coords, fill=fill_c, outline=line_c, width=1.5, smooth=True)
-                    self._poly_ids.append(pid)
+                if i >= len(self._orb_ids):
+                    oid = self.create_oval(x1, y1, x2, y2, fill=col, outline="")
+                    self._orb_ids.append(oid)
                 else:
-                    self.coords(self._poly_ids[i], *coords)
+                    self.coords(self._orb_ids[i], x1, y1, x2, y2)
 
         self._anim_id = self.after(30, self._animate)
 
@@ -162,16 +164,20 @@ class AnimatedWaveBackground(tk.Canvas):
             self._anim_id = None
 
 
+# Compatibility Alias
+AnimatedWaveBackground = FluidBackground
+
+
 # =============================================================================
-# SIDEBAR NAVIGATION ITEM
+# SIDEBAR NAVIGATION ITEM (SQUIRCLE PILL)
 # =============================================================================
 
 class SOCNavItem(tk.Canvas):
     """
-    SOC Workstation sidebar navigation button with stateful indicator:
-    - Default: TEXT_SECONDARY text, SIDEBAR_BG
-    - Hover: TEXT_PRIMARY text, PANEL_ELEVATED background
-    - Selected: MINT text, PANEL_HOVER background, MINT active pill indicator
+    SOC Workstation sidebar navigation button with smooth squircle pill styling:
+    - Default: TEXT_SECONDARY text, CARD_BG
+    - Hover: TEXT_PRIMARY text, PANEL_ELEVATED background pill
+    - Selected: MINT text, PANEL_HOVER background pill, MINT active pill dot
     """
 
     def __init__(
@@ -180,14 +186,14 @@ class SOCNavItem(tk.Canvas):
         text: str,
         route_name: str,
         on_click_callback: Callable[[str], None],
-        width: int = 280,
+        width: int = 240,
         height: int = 38,
     ):
         super().__init__(
             parent,
             width=width,
             height=height,
-            bg=SIDEBAR_BG,
+            bg=CARD_BG,
             highlightthickness=0,
             bd=0,
             cursor="hand2",
@@ -195,17 +201,25 @@ class SOCNavItem(tk.Canvas):
         self.item_text = text
         self.route_name = route_name
         self.on_click_callback = on_click_callback
-        self.w = width
-        self.h = height
+        self.item_width = width
+        self.item_height = height
 
         self.is_active = False
         self.is_hovered = False
 
+        self.bind("<Configure>", self._on_configure)
         self.bind("<Enter>", self._on_enter)
         self.bind("<Leave>", self._on_leave)
         self.bind("<Button-1>", self._on_click)
 
         self.redraw()
+
+    def _on_configure(self, event) -> None:
+        if event.width > 2 and event.height > 2:
+            if event.width != self.item_width or event.height != self.item_height:
+                self.item_width = event.width
+                self.item_height = event.height
+                self.redraw()
 
     def set_active(self, active: bool) -> None:
         """Update active status and redraw item."""
@@ -225,40 +239,46 @@ class SOCNavItem(tk.Canvas):
             self.on_click_callback(self.route_name)
 
     def redraw(self) -> None:
-        """Render SOC nav item state."""
+        """Render SOC nav item squircle state."""
         self.delete("all")
+        w, h = self.item_width, self.item_height
 
-        # Background wash
         if self.is_active:
-            bg_color = PANEL_HOVER
-        elif self.is_hovered:
-            bg_color = PANEL_ELEVATED
-        else:
-            bg_color = SIDEBAR_BG
-
-        self.create_rectangle(0, 0, self.w, self.h, fill=bg_color, outline="")
-
-        # Left indicator dot/pill for active item
-        if self.is_active:
-            self.create_rectangle(0, 4, 3, self.h - 4, fill=MINT, outline="")
-        elif self.is_hovered:
-            self.create_rectangle(0, 8, 2, self.h - 8, fill=BORDER_HOVER, outline="")
-
-        # Text label
-        if self.is_active:
+            bg_pill = PANEL_HOVER
+            outline_pill = BORDER_SECONDARY
             fg_color = MINT
             font_spec = (FONT_FALLBACK, FS_BASE, "bold")
         elif self.is_hovered:
+            bg_pill = PANEL_ELEVATED
+            outline_pill = BORDER
             fg_color = TEXT_PRIMARY
             font_spec = (FONT_FALLBACK, FS_BASE, "normal")
         else:
+            bg_pill = ""
+            outline_pill = ""
             fg_color = TEXT_SECONDARY
             font_spec = (FONT_FALLBACK, FS_BASE, "normal")
 
-        # 20px horizontal padding for 280px sidebar
+        if bg_pill:
+            draw_squircle(
+                self,
+                4, 2, w - 4, h - 2,
+                radius=10,
+                fill=bg_pill,
+                outline=outline_pill,
+                width=1,
+            )
+
+        # Left indicator dot for active item
+        if self.is_active:
+            self.create_oval(14, h // 2 - 3, 20, h // 2 + 3, fill=MINT, outline="")
+            text_x = 28
+        else:
+            text_x = 20
+
         self.create_text(
-            20,
-            self.h // 2,
+            text_x,
+            h // 2,
             text=self.item_text,
             anchor="w",
             fill=fg_color,
@@ -277,12 +297,12 @@ NavItem = SOCNavItem
 class AppShell(ttk.Frame):
     """
     SOC Workstation Application Shell featuring:
-    - Flowing animated wave background placed across the entire root window
-    - 280px Fixed Left Sidebar with grouped category navigation
-    - Transparent Top Toolbar with Breadcrumb, Floating Squircle Pill Search, and Live Status
-    - Dynamic Central Content Area with border removal letting background waves show through
+    - Flowing animated fluid background with drifting glowing orbs across the entire screen
+    - Floating Squircle Left Sidebar with 15px margins from edges
+    - Floating Squircle Pill Search with magnifying glass vector icon
+    - Ultra-clean minimalist layout without redundant breadcrumbs
     - Modal Slide-In Navigation for drill-down case investigation
-    - 26px Bottom Status Bar with system telemetry and real-time UTC clock
+    - Minimalist Bottom Status Bar with system telemetry and real-time UTC clock
     """
 
     def __init__(self, parent: tk.Misc):
@@ -320,27 +340,68 @@ class AppShell(ttk.Frame):
     # -------------------------------------------------------------------------
 
     def _build_layout(self) -> None:
-        """Assemble liquid cool workstation desktop chrome: animated background, 280px sidebar, glass search, content."""
+        """Assemble liquid glassmorphic workstation chrome with floating squircle sidebar and floating search pill."""
         self.configure(style="TFrame")
 
+        # Full-window Fluid Animated Background Canvas
+        self.fluid_bg = FluidBackground(self)
+        self.fluid_bg.place(x=0, y=0, relwidth=1.0, relheight=1.0)
+
         # ---------------------------------------------------------------------
-        # 1. Left Sidebar (280px Fixed Width, Liquid Glass styling)
+        # 1. Floating Left Sidebar (Squircle Panel with margin=15px from edges)
         # ---------------------------------------------------------------------
-        self.sidebar_container = ttk.Frame(self, width=280, style="Panel.TFrame")
-        self.sidebar_container._custom_bg = SIDEBAR_BG
-        self.sidebar_container.pack(side="left", fill="y")
-        self.sidebar_container.pack_propagate(False)
+        self.sidebar_outer = tk.Frame(self, bg=BG_DEEP, width=260)
+        self.sidebar_outer.pack(side="left", fill="y", padx=(15, 10), pady=15)
+        self.sidebar_outer.pack_propagate(False)
+
+        # Vector Canvas drawing floating squircle container
+        self.sidebar_canvas = tk.Canvas(
+            self.sidebar_outer,
+            width=260,
+            bg=BG_DEEP,
+            highlightthickness=0,
+            bd=0,
+        )
+        self.sidebar_canvas.pack(fill="both", expand=True)
+
+        self.sidebar_container = tk.Frame(self.sidebar_canvas, bg=CARD_BG)
+        self._sidebar_win_id = self.sidebar_canvas.create_window(
+            130, 200, window=self.sidebar_container, anchor="center"
+        )
+
+        def _on_sidebar_configure(event):
+            sw = event.width
+            sh = event.height
+            self.sidebar_canvas.delete("bg_squircle")
+            draw_squircle(
+                self.sidebar_canvas,
+                1, 1, sw - 1, sh - 1,
+                radius=24,
+                fill=CARD_BG,
+                outline=BORDER,
+                width=1,
+                tags="bg_squircle",
+            )
+            self.sidebar_canvas.tag_lower("bg_squircle")
+            self.sidebar_canvas.coords(self._sidebar_win_id, sw // 2, sh // 2)
+            self.sidebar_canvas.itemconfigure(
+                self._sidebar_win_id,
+                width=max(1, sw - 6),
+                height=max(1, sh - 6),
+            )
+
+        self.sidebar_canvas.bind("<Configure>", _on_sidebar_configure)
 
         # Top Branding Header in Sidebar
-        brand_frame = tk.Frame(self.sidebar_container, bg=SIDEBAR_BG, padx=SP_4, pady=SP_4)
+        brand_frame = tk.Frame(self.sidebar_container, bg=CARD_BG, padx=SP_4, pady=SP_3)
         brand_frame.pack(fill="x")
 
         tk.Label(
             brand_frame,
             text="FORENSEQUENCE",
-            fg=TEXT_PRIMARY,
-            bg=SIDEBAR_BG,
-            font=(FONT_DISPLAY, 14, "bold"),
+            fg=TEXT_MAIN,
+            bg=CARD_BG,
+            font=(FONT_DISPLAY, 13, "bold"),
             anchor="w",
         ).pack(fill="x")
 
@@ -348,14 +409,14 @@ class AppShell(ttk.Frame):
             brand_frame,
             text="v1.0 SOC WORKSTATION",
             fg=TEXT_MUTED,
-            bg=SIDEBAR_BG,
-            font=(FONT_FALLBACK, 10, "bold"),
+            bg=CARD_BG,
+            font=(FONT_FALLBACK, 9, "bold"),
             anchor="w",
         ).pack(fill="x", pady=(2, 0))
 
         create_divider(self.sidebar_container, color=BORDER).pack(fill="x", padx=SP_3, pady=(SP_2, SP_3))
 
-        # Grouped Navigation Sections (About screen removed)
+        # Grouped Navigation Sections
         nav_groups = [
             ("WORKSPACE", [
                 ("Dashboard", "Dashboard"),
@@ -377,8 +438,8 @@ class AppShell(ttk.Frame):
                 self.sidebar_container,
                 text=group_label,
                 fg=TEXT_MUTED,
-                bg=SIDEBAR_BG,
-                font=(FONT_FALLBACK, 10, "bold"),
+                bg=CARD_BG,
+                font=(FONT_FALLBACK, 9, "bold"),
                 anchor="w",
                 padx=20,
             )
@@ -390,81 +451,90 @@ class AppShell(ttk.Frame):
                     text=display_name,
                     route_name=route_key,
                     on_click_callback=self.show_screen,
-                    width=280,
-                    height=38,
+                    width=240,
+                    height=36,
                 )
-                nav_btn.pack(fill="x", pady=1)
+                nav_btn.pack(fill="x", pady=1, padx=4)
                 self._nav_items[route_key] = nav_btn
 
-        # Bottom spacer pushing sidebar elements up
-        spacer = ttk.Frame(self.sidebar_container, style="Panel.TFrame")
-        spacer._custom_bg = SIDEBAR_BG
+        # Spacer pushing content up
+        spacer = tk.Frame(self.sidebar_container, bg=CARD_BG)
         spacer.pack(fill="both", expand=True)
 
         # ---------------------------------------------------------------------
         # 2. Main Right Workstation Area (Top Toolbar + Content + Status Bar)
         # ---------------------------------------------------------------------
-        self.workstation_area = tk.Frame(self, bg="#000000")
-        self.workstation_area.pack(side="left", fill="both", expand=True)
+        self.workstation_area = tk.Frame(self, bg=BG_DEEP)
+        self.workstation_area.pack(side="left", fill="both", expand=True, padx=(0, 15), pady=15)
 
-        # --- Top Toolbar (Transparent feel, floating glass squircle search bar) ---
-        self.top_toolbar = tk.Frame(self.workstation_area, height=48, bg="#000000")
+        # --- Top Toolbar (Minimalist iOS Style, Floating Pill Search) ---
+        self.top_toolbar = tk.Frame(self.workstation_area, height=48, bg=BG_DEEP)
         self.top_toolbar.pack(fill="x", side="top")
         self.top_toolbar.pack_propagate(False)
 
-        # Left Toolbar: Breadcrumb Trail
-        self.breadcrumb_frame = tk.Frame(self.top_toolbar, bg="#000000")
-        self.breadcrumb_frame.pack(side="left", padx=SP_4, fill="y")
+        # Breadcrumb placeholders (kept for compatibility with show_screen)
+        self.lbl_breadcrumb_prefix = tk.Label(self.top_toolbar, text="", bg=BG_DEEP)
+        self.lbl_breadcrumb_active = tk.Label(self.top_toolbar, text="", bg=BG_DEEP)
 
-        self.lbl_breadcrumb_prefix = tk.Label(
-            self.breadcrumb_frame,
-            text="WORKSTATION /",
-            fg=TEXT_MUTED,
-            bg="#000000",
-            font=(FONT_FALLBACK, FS_SM, "bold"),
-        )
-        self.lbl_breadcrumb_prefix.pack(side="left", pady=13)
-
-        self.lbl_breadcrumb_active = tk.Label(
-            self.breadcrumb_frame,
-            text="DASHBOARD",
-            fg=TEXT_PRIMARY,
-            bg="#000000",
-            font=(FONT_FALLBACK, FS_SM, "bold"),
-        )
-        self.lbl_breadcrumb_active.pack(side="left", padx=(4, 0), pady=13)
-
-        # Center Toolbar: Floating liquid squircle pill search bar (radius=18)
-        self.search_pill = create_liquid_squircle(
+        # Left Header Title in Toolbar
+        self.toolbar_title = tk.Label(
             self.top_toolbar,
+            text="FORENSIC NEXUS",
+            fg=TEXT_MUTED,
+            bg=BG_DEEP,
+            font=(FONT_FALLBACK, 10, "bold"),
+        )
+        self.toolbar_title.pack(side="left", padx=SP_2)
+
+        # Center Toolbar: Floating Rounded Pill Search Bar with Vector Magnifying Glass
+        self.search_pill_frame = tk.Frame(self.top_toolbar, bg=BG_DEEP)
+        self.search_pill_frame.pack(side="left", expand=True)
+
+        self.search_canvas = tk.Canvas(
+            self.search_pill_frame,
             width=360,
             height=36,
-            radius=18,
-            alpha=35,
-            tint=TEAL,
-            border_color=BORDER_SECONDARY,
+            bg=BG_DEEP,
+            highlightthickness=0,
+            bd=0,
         )
-        self.search_pill.pack(side="left", expand=True, pady=6)
+        self.search_canvas.pack()
 
-        search_placeholder = "Search cases, hashes, indicators..."
+        self._search_pill_id = draw_squircle(
+            self.search_canvas,
+            1, 1, 359, 35,
+            radius=18,
+            fill=CARD_BG,
+            outline=BORDER_SECONDARY,
+            width=1,
+            tags="search_pill",
+        )
+
+        # Vector magnifying glass icon
+        self.search_canvas.create_oval(14, 11, 23, 20, outline=TEXT_MUTED, width=1.6, tags="glass_icon")
+        self.search_canvas.create_line(21, 19, 27, 25, fill=TEXT_MUTED, width=2.0, tags="glass_icon")
+
+        search_placeholder = "Search cases, indicators..."
         self.entry_search = tk.Entry(
-            self.search_pill.inner_frame,
-            bg=PANEL_BG,
+            self.search_canvas,
+            bg=CARD_BG,
             fg=TEXT_MUTED,
             insertbackground=CYAN,
             bd=0,
             highlightthickness=0,
             font=(FONT_FALLBACK, FS_BASE),
         )
-        self.entry_search.pack(fill="both", expand=True, padx=12, pady=4)
+        self.search_canvas.create_window(195, 18, window=self.entry_search, width=310, height=24)
         self.entry_search.insert(0, search_placeholder)
 
         def _on_search_focus_in(event):
+            self.search_canvas.itemconfig(self._search_pill_id, outline=CYAN)
             if self.entry_search.get() == search_placeholder:
                 self.entry_search.delete(0, tk.END)
-                self.entry_search.config(fg=TEXT_PRIMARY)
+                self.entry_search.config(fg=TEXT_MAIN)
 
         def _on_search_focus_out(event):
+            self.search_canvas.itemconfig(self._search_pill_id, outline=BORDER_SECONDARY)
             if not self.entry_search.get().strip():
                 self.entry_search.delete(0, tk.END)
                 self.entry_search.insert(0, search_placeholder)
@@ -474,36 +544,36 @@ class AppShell(ttk.Frame):
         self.entry_search.bind("<FocusOut>", _on_search_focus_out)
         self.entry_search.bind("<Return>", self._on_global_search)
 
-        # Right Toolbar: Case Context Badge + Live Status Indicator Dot
-        self.toolbar_right = tk.Frame(self.top_toolbar, bg="#000000")
-        self.toolbar_right.pack(side="right", padx=SP_4, fill="y")
+        # Right Toolbar: Case Context Badge + Live Status Dot
+        self.toolbar_right = tk.Frame(self.top_toolbar, bg=BG_DEEP)
+        self.toolbar_right.pack(side="right", padx=SP_2, fill="y")
 
-        self.case_badge_container = tk.Frame(self.toolbar_right, bg="#000000")
+        self.case_badge_container = tk.Frame(self.toolbar_right, bg=BG_DEEP)
         self.case_badge_container.pack(side="left", padx=(0, SP_3), pady=8)
-        self.case_badge = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEAL_MID, bg="#000000")
+        self.case_badge = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEAL_MID, bg=BG_DEEP)
         self.case_badge.pack(side="left")
 
         # Live Status Indicator Dot & Label
-        self.status_box = tk.Frame(self.toolbar_right, bg="#000000")
+        self.status_box = tk.Frame(self.toolbar_right, bg=BG_DEEP)
         self.status_box.pack(side="left", pady=13)
 
         self.dot_canvas = tk.Canvas(
-            self.status_box, width=12, height=12, bg="#000000", highlightthickness=0, bd=0
+            self.status_box, width=12, height=12, bg=BG_DEEP, highlightthickness=0, bd=0
         )
         self.dot_canvas.pack(side="left", padx=(0, 6))
         self.dot_item = self.dot_canvas.create_oval(2, 2, 10, 10, fill=CYAN, outline="")
 
         self.status_label = tk.Label(
             self.status_box,
-            text="STATUS: IDLE",
+            text="ONLINE",
             fg=TEXT_SECONDARY,
-            bg="#000000",
+            bg=BG_DEEP,
             font=(FONT_MONO_FALLBACK, FS_XS, "bold"),
         )
         self.status_label.pack(side="left")
 
-        # --- Bottom Status Bar (Height 26px, #050C0B, no harsh border) ---
-        self.status_bar = tk.Frame(self.workstation_area, height=26, bg=SIDEBAR_BG)
+        # --- Bottom Status Bar (Height 26px, CARD_BG, floating feel) ---
+        self.status_bar = tk.Frame(self.workstation_area, height=26, bg=CARD_BG)
         self.status_bar.pack(fill="x", side="bottom")
         self.status_bar.pack_propagate(False)
 
@@ -512,7 +582,7 @@ class AppShell(ttk.Frame):
             self.status_bar,
             text="SYSTEM STATUS: ONLINE | KNOWLEDGE BASE: 9 RULES ACTIVE",
             fg=TEXT_MUTED,
-            bg=SIDEBAR_BG,
+            bg=CARD_BG,
             font=(FONT_MONO_FALLBACK, 8, "normal"),
         )
         self.lbl_system_status.pack(side="left", padx=SP_4)
@@ -522,7 +592,7 @@ class AppShell(ttk.Frame):
             self.status_bar,
             text="FORENSIC WORKSTATION | THREAT INTELLIGENCE ENGINE",
             fg=TEXT_MUTED,
-            bg=SIDEBAR_BG,
+            bg=CARD_BG,
             font=(FONT_FALLBACK, 8, "normal"),
         )
         self.case_context_label.pack(side="left", expand=True)
@@ -532,20 +602,17 @@ class AppShell(ttk.Frame):
             self.status_bar,
             text="--:--:-- UTC",
             fg=TEXT_SECONDARY,
-            bg=SIDEBAR_BG,
+            bg=CARD_BG,
             font=(FONT_MONO_FALLBACK, 9, "bold"),
         )
         self.clock_label.pack(side="right", padx=SP_4)
 
-        # --- Central Screen Container Area with animated wave background ---
-        # The wave canvas is embedded INSIDE the content container so it's
-        # actually visible (Tkinter frames are always opaque, so placing a
-        # canvas behind a Frame makes it invisible).
-        self.content_container = tk.Frame(self.workstation_area, bg="#000000")
-        self.content_container.pack(fill="both", expand=True, padx=8, pady=(0, 4))
+        # --- Central Screen Container Area with flowing fluid background ---
+        self.content_container = tk.Frame(self.workstation_area, bg=BG_DEEP)
+        self.content_container.pack(fill="both", expand=True, pady=(6, 4))
 
-        # Animated wave background fills the content area
-        self.wave_bg = AnimatedWaveBackground(self.content_container)
+        # Fluid background also fills content container so gaps between cards reveal flowing waves
+        self.wave_bg = FluidBackground(self.content_container)
         self.wave_bg.place(x=0, y=0, relwidth=1.0, relheight=1.0)
 
     # -------------------------------------------------------------------------

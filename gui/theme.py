@@ -5,50 +5,58 @@
 
 from __future__ import annotations
 
+import math
 import tkinter as tk
-from typing import Optional
+from typing import Optional, Callable
 from PIL import Image, ImageDraw, ImageTk
 import ttkbootstrap as ttk
 from ttkbootstrap.style import Style
 
 
 # =============================================================================
-# SOC COLOR TOKENS (Master Design Blueprint)
+# MINIMALIST IOS LIQUID GLASSMORPHISM PALETTE
 # =============================================================================
 
-APP_BG            = "#030707"
-BG_SECONDARY      = "#061211"
-SIDEBAR_BG        = "#050C0B"
-PANEL_BG          = "#0A1716"
-PANEL_ELEVATED    = "#0D1D1B"
-PANEL_HOVER       = "#122522"
+BG_DEEP           = "#020505"  # Pure deep obsidian canvas
+CARD_BG           = "#071413"  # Translucent squircle card surface
+TEXT_MAIN         = "#FFFFFF"  # High-contrast primary typographic tone
+TEXT_MUTED        = "#507571"  # Sophisticated muted tertiary tone
 
-CYAN_GLOW         = "#5EEAD4"
-CYAN_NEON         = "#1FF2C9"
-MINT              = "#2DE3C8"
-CYAN              = "#22D3C5"
-TEAL              = "#14B8A6"
-TEAL_MID          = "#18A999"
-TEAL_DARK         = "#0E8A80"
-TEAL_DEEP         = "#0F6E66"
-TEAL_BG           = "#126B6B"
-TEAL_DEEP_BG      = "#0A3A3C"
-
-TEXT_PRIMARY      = "#F2F7F6"
-TEXT_SECONDARY    = "#B0C2BF"
-TEXT_MUTED        = "#7B918D"
-TEXT_DISABLED     = "#50635F"
-
-BORDER            = "#1B302D"
-BORDER_SECONDARY  = "#263F3B"
-BORDER_HOVER      = "#35635C"
-
-CRITICAL          = "#FF5B5B"  # Red (strictly for CRITICAL)
-HIGH              = "#0E8A80"  # Deep Teal
-MEDIUM            = "#18A999"  # Mid Teal
+# Semantic Severity Scale (RED strictly reserved for CRITICAL; Mint/Teal/Cyan for all else)
+CRITICAL          = "#FF2A55"  # iOS Vivid Neon Red
+HIGH              = "#0A524C"  # Deep Emerald Teal
+MEDIUM            = "#0E8A80"  # Vibrant Mid Teal
 LOW               = "#2DE3C8"  # Mint Cyan
-INFORMATIONAL     = "#7B918D"
-CHART_GRID        = "#142724"
+INFORMATIONAL     = "#507571"
+CHART_GRID        = "#0B1E1C"
+
+# Liquid Accents & Glazes
+CYAN              = "#00F0FF"  # Electric iOS Cyan
+CYAN_GLOW         = "#5EEAD4"
+CYAN_NEON         = "#00F0FF"
+MINT              = "#2DE3C8"  # Mint Accent
+TEAL              = "#0E8A80"  # Deep Oceanic Teal
+TEAL_MID          = "#0E8A80"
+TEAL_DARK         = "#0A524C"
+TEAL_DEEP         = "#062220"
+TEAL_BG           = "#0A2825"
+TEAL_DEEP_BG      = "#051A18"
+
+# SOC Surface & Border Tokens (backward-compatible mappings)
+APP_BG            = BG_DEEP
+BG_SECONDARY      = "#040A09"
+SIDEBAR_BG        = CARD_BG
+PANEL_BG          = CARD_BG
+PANEL_ELEVATED    = "#0A1B19"
+PANEL_HOVER       = "#0E2623"
+
+TEXT_PRIMARY      = TEXT_MAIN
+TEXT_SECONDARY    = "#9AB4B0"
+TEXT_DISABLED     = "#354E4A"
+
+BORDER            = "#122A27"
+BORDER_SECONDARY  = "#1B3B37"
+BORDER_HOVER      = "#285852"
 
 # Legacy Color Aliases (for backward compatibility across existing frames)
 VOID              = APP_BG
@@ -327,6 +335,58 @@ def _hex_lerp(c1: str, c2: str, t: float) -> str:
     b = int(b1 + (b2 - b1) * t)
     return f"#{r:02x}{g:02x}{b:02x}"
 
+_lerp_color = _hex_lerp
+
+
+def draw_squircle(
+    canvas: tk.Canvas,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    radius: float = 24,
+    **kwargs,
+) -> int:
+    """
+    Draw a mathematically smooth rounded rectangle / squircle natively on a Canvas.
+    Uses multi-point corner arc sampling with canvas.create_polygon(..., smooth=True).
+    Returns the canvas item ID of the polygon.
+    """
+    w = max(0.0, float(x2 - x1))
+    h = max(0.0, float(y2 - y1))
+    r = min(float(radius), w / 2.0, h / 2.0)
+    if r <= 0:
+        return canvas.create_rectangle(x1, y1, x2, y2, **kwargs)
+
+    points = []
+    steps = 6
+
+    # Top-right corner arc (-pi/2 to 0)
+    cx, cy = x2 - r, y1 + r
+    for i in range(steps + 1):
+        ang = -math.pi / 2.0 + (math.pi / 2.0) * (i / steps)
+        points.extend([cx + r * math.cos(ang), cy + r * math.sin(ang)])
+
+    # Bottom-right corner arc (0 to pi/2)
+    cx, cy = x2 - r, y2 - r
+    for i in range(steps + 1):
+        ang = (math.pi / 2.0) * (i / steps)
+        points.extend([cx + r * math.cos(ang), cy + r * math.sin(ang)])
+
+    # Bottom-left corner arc (pi/2 to pi)
+    cx, cy = x1 + r, y2 - r
+    for i in range(steps + 1):
+        ang = math.pi / 2.0 + (math.pi / 2.0) * (i / steps)
+        points.extend([cx + r * math.cos(ang), cy + r * math.sin(ang)])
+
+    # Top-left corner arc (pi to 3*pi/2)
+    cx, cy = x1 + r, y1 + r
+    for i in range(steps + 1):
+        ang = math.pi + (math.pi / 2.0) * (i / steps)
+        points.extend([cx + r * math.cos(ang), cy + r * math.sin(ang)])
+
+    return canvas.create_polygon(points, smooth=True, **kwargs)
+
 
 def _draw_rounded_rect(
     canvas: tk.Canvas,
@@ -336,25 +396,163 @@ def _draw_rounded_rect(
     **kwargs,
 ) -> int:
     """
-    Draw a filled rounded rectangle on a Canvas.
+    Draw a filled rounded rectangle / squircle on a Canvas.
     Returns the canvas item ID of the polygon.
     """
-    r = radius
-    points = [
-        x1 + r, y1,
-        x2 - r, y1,
-        x2, y1,
-        x2, y1 + r,
-        x2, y2 - r,
-        x2, y2,
-        x2 - r, y2,
-        x1 + r, y2,
-        x1, y2,
-        x1, y2 - r,
-        x1, y1 + r,
-        x1, y1,
-    ]
-    return canvas.create_polygon(points, smooth=True, **kwargs)
+    return draw_squircle(canvas, x1, y1, x2, y2, radius=radius, **kwargs)
+
+
+class LiquidButton(tk.Canvas):
+    """
+    A Canvas-based pill-shaped button with iOS Liquid Glassmorphism styling.
+    Features:
+    - Native squircle / pill vector drawing via draw_squircle
+    - Smooth 150ms color interpolation on <Enter> and <Leave> via after()
+    - Crisp vector typography, 60fps performance, no PIL resizing lag
+    """
+
+    def __init__(
+        self,
+        parent,
+        text: str = "",
+        command: Optional[Callable[[], None]] = None,
+        width: int = 140,
+        height: int = 38,
+        radius: Optional[int] = None,
+        bg: str = BG_DEEP,
+        fill_color: str = TEAL,
+        hover_color: str = CYAN,
+        text_color: str = TEXT_MAIN,
+        hover_text_color: str = BG_DEEP,
+        border_color: Optional[str] = BORDER_SECONDARY,
+        border_width: int = 1,
+        font: tuple = (FONT_FALLBACK, 10, "bold"),
+        cursor: str = "hand2",
+        **kwargs,
+    ):
+        super().__init__(
+            parent,
+            width=width,
+            height=height,
+            bg=bg,
+            highlightthickness=0,
+            bd=0,
+            cursor=cursor,
+            **kwargs,
+        )
+        self.text = text
+        self.command = command
+        self.radius = radius if radius is not None else height // 2
+        self.bg_color = bg
+        self.fill_color = fill_color
+        self.hover_color = hover_color
+        self.text_color = text_color
+        self.hover_text_color = hover_text_color
+        self.border_color = border_color
+        self.border_width = border_width
+        self.font = font
+
+        self._curr_w = width
+        self._curr_h = height
+        self._current_fill = fill_color
+        self._current_text = text_color
+        self._is_hovered = False
+        self._anim_id: Optional[str] = None
+        self._total_steps = 6  # 6 frames * 25ms = 150ms
+
+        self._redraw()
+
+        self.bind("<Configure>", self._on_configure)
+        self.bind("<Enter>", self._on_enter)
+        self.bind("<Leave>", self._on_leave)
+        self.bind("<Button-1>", self._on_click)
+
+    def _on_configure(self, event):
+        if event.width > 2 and event.height > 2:
+            if event.width != self._curr_w or event.height != self._curr_h:
+                self._curr_w = event.width
+                self._curr_h = event.height
+                self._redraw()
+
+    def _redraw(self):
+        self.delete("all")
+        pad = max(1, self.border_width)
+        r = min(self.radius, (self._curr_h - pad * 2) // 2, (self._curr_w - pad * 2) // 2)
+        draw_squircle(
+            self,
+            pad,
+            pad,
+            self._curr_w - pad,
+            self._curr_h - pad,
+            radius=r,
+            fill=self._current_fill,
+            outline=self.border_color or "",
+            width=self.border_width,
+            tags="pill",
+        )
+        self.create_text(
+            self._curr_w // 2,
+            self._curr_h // 2,
+            text=self.text,
+            fill=self._current_text,
+            font=self.font,
+            tags="label",
+        )
+
+    def _on_enter(self, event=None):
+        if not self._is_hovered:
+            self._is_hovered = True
+            self._start_tween(target_hover=True)
+
+    def _on_leave(self, event=None):
+        if event is not None:
+            if 0 <= event.x < self._curr_w and 0 <= event.y < self._curr_h:
+                return
+        if self._is_hovered:
+            self._is_hovered = False
+            self._start_tween(target_hover=False)
+
+    def _start_tween(self, target_hover: bool):
+        if self._anim_id is not None:
+            self.after_cancel(self._anim_id)
+            self._anim_id = None
+
+        def _step(i: int):
+            if not self.winfo_exists():
+                return
+            t = i / float(self._total_steps)
+            ease_t = 1.0 - (1.0 - t) ** 3
+            if target_hover:
+                self._current_fill = _lerp_color(self.fill_color, self.hover_color, ease_t)
+                self._current_text = _lerp_color(self.text_color, self.hover_text_color, ease_t)
+            else:
+                self._current_fill = _lerp_color(self.hover_color, self.fill_color, ease_t)
+                self._current_text = _lerp_color(self.hover_text_color, self.text_color, ease_t)
+
+            self.itemconfig("pill", fill=self._current_fill)
+            self.itemconfig("label", fill=self._current_text)
+
+            if i < self._total_steps:
+                self._anim_id = self.after(25, lambda: _step(i + 1))
+            else:
+                self._anim_id = None
+
+        _step(1)
+
+    def _on_click(self, event=None):
+        if self.command:
+            self.command()
+
+    def set_text(self, text: str):
+        self.text = text
+        self.itemconfig("label", text=text)
+
+    def set_fill(self, fill_color: str, hover_color: Optional[str] = None):
+        self.fill_color = fill_color
+        if hover_color:
+            self.hover_color = hover_color
+        self._current_fill = fill_color
+        self.itemconfig("pill", fill=self._current_fill)
 
 
 def _draw_glow_border(
