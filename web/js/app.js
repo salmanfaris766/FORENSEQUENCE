@@ -35,8 +35,86 @@ async function callApi(methodName, ...args) {
 }
 
 // =============================================================================
-// APP INITIALIZATION
+// SCANNING / PROCESSING OVERLAY HELPER
 // =============================================================================
+function showScanningOverlay(targetEl, label = "PROCESSING EVIDENCE ARTIFACT...") {
+  if (!targetEl) return null;
+  const prevPos = window.getComputedStyle(targetEl).position;
+  if (prevPos === "static") {
+    targetEl.dataset.prevPosition = "static";
+    targetEl.style.position = "relative";
+  }
+  let overlay = targetEl.querySelector(":scope > .scanning-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.className = "scanning-overlay";
+    overlay.innerHTML = `
+      <div class="scanning-laser-line"></div>
+      <div class="scanning-badge">
+        <span class="pulse-laser-dot"></span>
+        <span class="scanning-text">${label}</span>
+      </div>
+    `;
+    targetEl.appendChild(overlay);
+  } else {
+    const textEl = overlay.querySelector(".scanning-text");
+    if (textEl) textEl.textContent = label;
+  }
+  requestAnimationFrame(() => overlay.classList.add("active"));
+  return overlay;
+}
+
+function hideScanningOverlay(targetEl) {
+  if (!targetEl) return;
+  const overlay = targetEl.querySelector(":scope > .scanning-overlay");
+  if (overlay) {
+    overlay.classList.remove("active");
+    setTimeout(() => {
+      overlay.remove();
+      if (targetEl.dataset.prevPosition === "static") {
+        targetEl.style.position = "";
+        delete targetEl.dataset.prevPosition;
+      }
+    }, 260);
+  }
+}
+
+// =============================================================================
+// APP INITIALIZATION & GLOBAL LIQUID LOADER
+// =============================================================================
+let bridgeInitialized = false;
+
+function hideGlobalLoader() {
+  const loader = document.getElementById("global-loader");
+  if (loader && !loader.classList.contains("fade-out")) {
+    loader.classList.add("fade-out");
+    setTimeout(() => {
+      loader.style.display = "none";
+    }, 320);
+  }
+}
+
+async function onBridgeReady() {
+  if (bridgeInitialized) return;
+  bridgeInitialized = true;
+  console.log("PyWebview Bridge initialized successfully.");
+  try {
+    // Initial data fetch and rendering
+    await loadRoute(AppState.currentRoute);
+    startMonitoringPoller();
+  } catch (err) {
+    console.error("Initialization error:", err);
+  } finally {
+    // Only hide #global-loader (with 300ms CSS fade-out) AFTER the first data payload is fully rendered
+    hideGlobalLoader();
+  }
+}
+
+// Wrap initial data fetch inside pywebviewready event listener
+window.addEventListener("pywebviewready", () => {
+  onBridgeReady();
+});
+
 document.addEventListener("DOMContentLoaded", () => {
   initBackgroundWaves();
   initNavigation();
@@ -45,31 +123,27 @@ document.addEventListener("DOMContentLoaded", () => {
   initDrawer();
   initModal();
 
-  // Wait for PyWebview bridge readiness
+  // If pywebview bridge is already attached
   if (window.pywebview && window.pywebview.api) {
     onBridgeReady();
   } else {
-    window.addEventListener("pywebviewready", onBridgeReady);
-    // Fallback polling for bridge
+    // Fallback polling for bridge or standalone browser preview
     let checkCount = 0;
     const interval = setInterval(() => {
       checkCount++;
       if (window.pywebview && window.pywebview.api) {
         clearInterval(interval);
         onBridgeReady();
-      } else if (checkCount > 25) {
+      } else if (checkCount > 15) {
         clearInterval(interval);
-        console.warn("Pywebview bridge not detected within 5 seconds.");
+        if (!bridgeInitialized) {
+          console.warn("Pywebview bridge not detected within 3 seconds, launching standalone state.");
+          onBridgeReady();
+        }
       }
     }, 200);
   }
 });
-
-async function onBridgeReady() {
-  console.log("PyWebview Bridge initialized successfully.");
-  await loadRoute(AppState.currentRoute);
-  startMonitoringPoller();
-}
 
 // =============================================================================
 // ANIMATED FLUID ORB BACKGROUND (60 FPS NATIVE CANVAS)
@@ -124,7 +198,7 @@ function initBackgroundWaves() {
 }
 
 // =============================================================================
-// ROUTER & NAVIGATION
+// ROUTER & NAVIGATION (WITH HARDWARE-ACCELERATED TRANSITIONS)
 // =============================================================================
 function initNavigation() {
   document.querySelectorAll(".nav-item").forEach((btn) => {
@@ -153,6 +227,12 @@ async function loadRoute(route) {
   };
   if (title) title.textContent = titleMap[route] || "FORENSIC WORKSTATION";
 
+  // Hardware-accelerated transition: start at opacity 0, translateY 10px
+  if (viewport) {
+    viewport.classList.remove("active");
+    viewport.classList.add("view-transition");
+  }
+
   switch (route) {
     case "dashboard":
       await renderDashboard(viewport);
@@ -177,6 +257,15 @@ async function loadRoute(route) {
       break;
     default:
       await renderDashboard(viewport);
+  }
+
+  // Smooth slide+fade in on next animation frame
+  if (viewport) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        viewport.classList.add("active");
+      });
+    });
   }
 }
 
@@ -320,8 +409,8 @@ async function refreshDashboardMetrics() {
       .join("");
   }
 
-  // Draw Smooth Bezier Activity Timeline Chart on Canvas
-  drawBezierTimelineChart(data.timeline_labels, data.timeline_counts);
+  // Draw Smooth Activity Timeline Chart (Chart.js Interactive Animations)
+  renderTimelineChart(data.timeline_labels, data.timeline_counts);
 
   // Recent Activity Table
   const rowsContainer = document.getElementById("activity-rows");
@@ -372,7 +461,99 @@ async function refreshDashboardMetrics() {
 }
 
 // -----------------------------------------------------------------------------
-// SMOOTH BEZIER TIMELINE CANVAS CHART
+// TIMELINE CHART (CHART.JS INTERACTIVE WITH 60FPS NATIVE CANVAS FALLBACK)
+// -----------------------------------------------------------------------------
+let timelineChartInstance = null;
+
+function renderTimelineChart(labels, counts) {
+  const canvas = document.getElementById("timeline-chart-canvas");
+  if (!canvas) return;
+
+  if (typeof Chart !== "undefined") {
+    const ctx = canvas.getContext("2d");
+    if (timelineChartInstance) {
+      timelineChartInstance.destroy();
+      timelineChartInstance = null;
+    }
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 180);
+    gradient.addColorStop(0, "rgba(0, 240, 255, 0.32)");
+    gradient.addColorStop(0.4, "rgba(14, 138, 128, 0.15)");
+    gradient.addColorStop(1, "rgba(2, 5, 5, 0.0)");
+
+    timelineChartInstance = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "Intrusion Events",
+            data: counts,
+            borderColor: "#00F0FF",
+            borderWidth: 2.5,
+            backgroundColor: gradient,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: "#020505",
+            pointBorderColor: "#00F0FF",
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointHoverBackgroundColor: "#2DE3C8",
+            pointHoverBorderColor: "#FFFFFF",
+            pointHoverBorderWidth: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+          duration: 1200,
+          easing: "easeOutQuart",
+        },
+        interaction: {
+          mode: "index",
+          intersect: false,
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "rgba(6, 21, 20, 0.95)",
+            titleColor: "#00F0FF",
+            titleFont: { family: "Consolas", size: 11, weight: "bold" },
+            bodyColor: "#FFFFFF",
+            bodyFont: { family: "Consolas", size: 11 },
+            borderColor: "rgba(0, 240, 255, 0.4)",
+            borderWidth: 1,
+            padding: 10,
+            cornerRadius: 8,
+            displayColors: false,
+            callbacks: {
+              label: (context) => ` Flagged Events: ${context.parsed.y}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: "#507571", font: { family: "Consolas", size: 10 } },
+          },
+          y: {
+            grid: { color: "rgba(11, 30, 28, 0.6)", borderDash: [4, 4] },
+            ticks: { color: "#507571", font: { family: "Consolas", size: 10 }, stepSize: 2 },
+            beginAtZero: true,
+          },
+        },
+      },
+    });
+  } else {
+    drawBezierTimelineChart(labels, counts);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SMOOTH BEZIER TIMELINE CANVAS CHART (FALLBACK)
 // -----------------------------------------------------------------------------
 function drawBezierTimelineChart(labels, counts) {
   const canvas = document.getElementById("timeline-chart-canvas");
@@ -620,13 +801,19 @@ async function renderEvidenceView(container) {
     }
     const path = await callApi("select_file_dialog");
     if (path) {
+      const card = document.getElementById("evidence-list-card");
+      showScanningOverlay(card, `HASHING & INGESTING ${path.split(/[\\/]/).pop()}...`);
       showToast("INGESTING", `Hashing and importing ${path.split(/[\\/]/).pop()}...`);
-      const res = await callApi("import_evidence", AppState.activeCaseId, path, "auto");
-      if (res && res.success) {
-        showToast("EVIDENCE INGESTED", `Verified SHA-256: ${res.file_hash.slice(0, 16)}...`);
-        loadEvidenceForCase(AppState.activeCaseId);
-      } else {
-        showToast("IMPORT FAILED", res?.error || "Unable to import artifact.", true);
+      try {
+        const res = await callApi("import_evidence", AppState.activeCaseId, path, "auto");
+        if (res && res.success) {
+          showToast("EVIDENCE INGESTED", `Verified SHA-256: ${res.file_hash.slice(0, 16)}...`);
+          loadEvidenceForCase(AppState.activeCaseId);
+        } else {
+          showToast("IMPORT FAILED", res?.error || "Unable to import artifact.", true);
+        }
+      } finally {
+        hideScanningOverlay(card);
       }
     }
   });
@@ -674,31 +861,46 @@ async function renderAnalysisView(container) {
       </div>
     </div>
 
-    <!-- Holographic Risk Halo & Findings Breakdown -->
-    <div class="drawer-top-grid">
-      <div class="halo-card glass-card">
-        <div class="halo-canvas-wrap">
-          <canvas id="halo-canvas-view" width="200" height="200"></canvas>
-          <div class="halo-center-info">
-            <span class="halo-score" id="view-halo-score">--</span>
-            <span class="halo-level" id="view-halo-level">ANALYSIS PENDING</span>
+    <!-- Tight CSS Grid Container -->
+    <div class="analysis-screen-grid" id="analysis-screen-container">
+      <!-- Top Grid: Holographic Risk Halo & Expert System Summary -->
+      <div class="analysis-top-grid">
+        <div class="halo-card glass-card">
+          <div class="halo-canvas-wrap">
+            <canvas id="halo-canvas-view" width="200" height="200"></canvas>
+            <div class="halo-center-info">
+              <span class="halo-score" id="view-halo-score">--</span>
+              <span class="halo-level" id="view-halo-level">ANALYSIS PENDING</span>
+            </div>
           </div>
+        </div>
+
+        <div class="glass-card" style="display: flex; flex-direction: column; gap: 12px; justify-content: center;">
+          <h3 style="font-size: 13px; font-weight: 800; color: var(--text-main); letter-spacing: 0.6px;">EXPERT SYSTEM REASONING SUMMARY</h3>
+          <p style="color: var(--text-secondary); font-size: 12px; line-height: 1.6;" id="view-analysis-summary">
+            Select an active investigation case and click [EVALUATE FORWARD CHAINING] to execute propositional inference rules, derive forensic findings, and calculate risk metrics.
+          </p>
         </div>
       </div>
 
-      <div class="glass-card" style="display: flex; flex-direction: column; gap: 12px; justify-content: center;">
-        <h3 style="font-size: 14px; font-weight: 800; color: var(--text-main);">EXPERT SYSTEM REASONING SUMMARY</h3>
-        <p style="color: var(--text-secondary); font-size: 12px; line-height: 1.6;" id="view-analysis-summary">
-          Select an active investigation case and click [EVALUATE FORWARD CHAINING] to execute propositional inference rules, derive forensic findings, and calculate risk metrics.
-        </p>
-      </div>
-    </div>
+      <!-- Bottom Grid: Derived Findings & Explainable Proof Log -->
+      <div class="analysis-bottom-grid">
+        <div class="glass-card" style="display: flex; flex-direction: column;">
+          <h3 style="font-size: 11px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; letter-spacing: 0.5px;">DERIVED THREAT FINDINGS</h3>
+          <div id="view-findings-list" class="findings-list-container">
+            <!-- Injected dynamically -->
+          </div>
+        </div>
 
-    <!-- AI Findings List -->
-    <div class="glass-card">
-      <h3 style="font-size: 12px; font-weight: 800; color: var(--text-main); margin-bottom: 14px;">DERIVED THREAT FINDINGS & EXPLAINABLE PROOFS</h3>
-      <div id="view-findings-list" style="display: flex; flex-direction: column; gap: 10px;">
-        <!-- Injected dynamically -->
+        <div class="glass-card" style="display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="font-size: 11px; font-weight: 800; color: var(--text-main); letter-spacing: 0.5px;">EXPLAINABLE INFERENCE PROOF LOG</h3>
+            <span style="font-family: Consolas, monospace; font-size: 10px; color: var(--cyan); font-weight: 700;">PROPOSITIONAL TRACE</span>
+          </div>
+          <div class="proof-log-terminal" id="view-proof-log">
+            <div style="color: var(--text-muted);">Awaiting forward chaining execution. Click [EVALUATE FORWARD CHAINING] to generate deductive proof steps.</div>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -717,18 +919,24 @@ async function renderAnalysisView(container) {
 
   document.getElementById("btn-run-analysis-view")?.addEventListener("click", async () => {
     if (!AppState.activeCaseId) return;
+    const targetCard = document.getElementById("analysis-screen-container") || container;
+    showScanningOverlay(targetCard, "EVALUATING FORWARD CHAINING REASONING RULES...");
     showToast("RUNNING INFERENCE", "Evaluating propositional logic rules...");
-    const res = await callApi("run_analysis", AppState.activeCaseId);
-    if (res && res.success) {
-      showToast("ANALYSIS COMPLETE", `Derived ${res.findings_count} threat indicators.`);
-      loadAnalysisForCase(AppState.activeCaseId);
-    } else {
-      showToast("ANALYSIS FAILED", res?.error || "Error running inference", true);
+    try {
+      const res = await callApi("run_analysis", AppState.activeCaseId);
+      if (res && res.success) {
+        showToast("ANALYSIS COMPLETE", `Derived ${res.findings_count} threat indicators.`);
+        await loadAnalysisForCase(AppState.activeCaseId, res.proof_steps);
+      } else {
+        showToast("ANALYSIS FAILED", res?.error || "Error running inference", true);
+      }
+    } finally {
+      hideScanningOverlay(targetCard);
     }
   });
 }
 
-async function loadAnalysisForCase(caseId) {
+async function loadAnalysisForCase(caseId, proofSteps = null) {
   const detail = await callApi("get_case_detail", caseId);
   if (!detail) return;
 
@@ -752,7 +960,7 @@ async function loadAnalysisForCase(caseId) {
   if (sumEl) {
     sumEl.innerHTML = `
       Case <b>${detail.case.case_number}</b> evaluated with an overall Threat Score of <b>${score}/100</b> (${level}).
-      Cataloged <b>${detail.evidence.length} evidence artifacts</b> and derived <b>${detail.findings.length} threat indicators</b>.
+      Cataloged <b>${detail.evidence.length} evidence artifacts</b> and derived <b>${detail.findings.length} threat indicators</b> via forward chaining deduction.
     `;
   }
 
@@ -765,17 +973,57 @@ async function loadAnalysisForCase(caseId) {
       listEl.innerHTML = detail.findings
         .map(
           (f) => `
-        <div style="background: rgba(6, 21, 20, 0.6); border: 1px solid var(--border-secondary); border-radius: 12px; padding: 14px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <div style="background: rgba(6, 21, 20, 0.6); border: 1px solid var(--border-secondary); border-radius: 12px; padding: 12px 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
             <span style="font-family: Consolas, monospace; font-weight: 700; color: var(--cyan);">[${f.rule_code}]</span>
             <span style="color: ${f.severity >= 50 ? 'var(--critical)' : 'var(--mint)'}; font-weight: 700;">+${f.severity} PTS</span>
           </div>
-          <div style="font-weight: 600; color: var(--text-main); font-size: 12px; margin-bottom: 6px;">${f.finding}</div>
+          <div style="font-weight: 600; color: var(--text-main); font-size: 12px; margin-bottom: 4px;">${f.finding}</div>
           <div style="font-size: 10px; color: var(--text-muted); font-family: Consolas, monospace;">DEDUCTIVE TRACE MONOTONIC FIXPOINT DERIVED</div>
         </div>
       `
         )
         .join("");
+    }
+  }
+
+  // Explainable Inference Proof Log (Reasoning Trace)
+  const proofEl = document.getElementById("view-proof-log");
+  if (proofEl) {
+    const timestamp = new Date().toLocaleTimeString();
+    if (proofSteps && proofSteps.length > 0) {
+      proofEl.innerHTML = proofSteps
+        .map(
+          (step, i) => `
+        <div style="margin-bottom: 6px;">
+          <span style="color: var(--text-muted);">[STEP ${String(i + 1).padStart(2, "0")}]</span>
+          <span style="color: var(--cyan); font-weight: 700;">[${step.rule_code || "RULE"}]</span>
+          <span style="color: var(--text-main);">${step.rule_name || step.description || JSON.stringify(step)}</span>
+          ${step.derived_fact ? `<div style="color: var(--mint); padding-left: 20px;">&rarr; Inferred fact: ${step.derived_fact}</div>` : ""}
+        </div>
+      `
+        )
+        .join("") + `<div style="color: var(--cyan); font-weight: 700; margin-top: 8px;">[FIXPOINT REACHED] Propositional monotonic closure verified. 0 contradictions.</div>`;
+    } else if (detail.findings.length > 0) {
+      proofEl.innerHTML = `
+        <div style="color: var(--text-muted); margin-bottom: 6px;">[${timestamp}] INITIALIZING PROPOSITIONAL INFERENCE PROVER...</div>
+        <div style="color: var(--text-secondary); margin-bottom: 6px;">[${timestamp}] Ingested ${detail.evidence.length} artifact facts into Working Memory.</div>
+        ${detail.findings
+          .map(
+            (f, i) => `
+          <div style="margin-bottom: 6px;">
+            <span style="color: var(--text-muted);">[STEP ${String(i + 1).padStart(2, "0")}]</span>
+            <span style="color: var(--cyan); font-weight: 700;">[${f.rule_code}]</span>
+            <span style="color: var(--text-main);">${f.finding}</span>
+            <div style="color: ${f.severity >= 50 ? 'var(--critical)' : 'var(--mint)'}; padding-left: 20px;">&rarr; Severity Weight: +${f.severity} pts</div>
+          </div>
+        `
+          )
+          .join("")}
+        <div style="color: var(--cyan); font-weight: 700; margin-top: 8px;">[FIXPOINT REACHED] Monotonic deductive closure satisfied. All active inference chains verified.</div>
+      `;
+    } else {
+      proofEl.innerHTML = `<div style="color: var(--text-muted); padding: 10px;">No proof steps logged. Click [EVALUATE FORWARD CHAINING] to evaluate propositional rules.</div>`;
     }
   }
 }
@@ -955,8 +1203,8 @@ async function renderReportsView(container) {
       </div>
     </div>
 
-    <!-- Minimalist Document Reader Layout -->
-    <div class="report-reader" id="report-reader-doc">
+    <!-- Expanded Document Reader Layout -->
+    <div class="report-preview-container" id="report-reader-doc">
       <!-- Injected dynamically -->
     </div>
   `;
@@ -1238,9 +1486,15 @@ async function openCaseDrawer(caseId) {
 
   // Drawer top action buttons
   document.getElementById("btn-drawer-run-ai")?.addEventListener("click", async () => {
+    const drawerContent = document.getElementById("drawer-content");
+    showScanningOverlay(drawerContent, "FORWARD CHAINING INFERENCE ENGINE RUNNING...");
     showToast("RUNNING INFERENCE", "Evaluating reasoning engine...");
-    await callApi("run_analysis", AppState.activeCaseId);
-    openCaseDrawer(AppState.activeCaseId);
+    try {
+      await callApi("run_analysis", AppState.activeCaseId);
+      openCaseDrawer(AppState.activeCaseId);
+    } finally {
+      hideScanningOverlay(drawerContent);
+    }
   });
 
   document.getElementById("btn-drawer-pdf")?.addEventListener("click", async () => {

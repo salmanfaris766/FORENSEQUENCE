@@ -77,6 +77,95 @@ body, html {
   pointer-events: none;
 }
 
+/* =============================================================================
+   GLOBAL INITIALIZATION LOADER
+============================================================================= */
+#global-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg-deep);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+}
+
+#global-loader.fade-out {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.loader-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.liquid-spinner {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 3px solid rgba(14, 138, 128, 0.2);
+  border-top: 3px solid var(--cyan);
+  border-right: 3px solid var(--mint);
+  animation: spinner-rotate 1.1s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.35);
+}
+
+.spinner-core {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 12px var(--mint);
+  animation: core-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes spinner-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes core-pulse {
+  0%, 100% { transform: scale(0.8); opacity: 0.6; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+.loader-text {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2.2px;
+  color: var(--cyan);
+  text-shadow: 0 0 12px rgba(0, 240, 255, 0.6);
+  animation: text-breathe 2s ease-in-out infinite;
+}
+
+@keyframes text-breathe {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+
 /* Main Application Layout Frame */
 #app-root {
   position: relative;
@@ -358,6 +447,19 @@ body, html {
   background: var(--teal);
 }
 
+/* Hardware-Accelerated Tab View Transitions */
+.view-transition {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  will-change: opacity, transform;
+}
+
+.view-transition.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* Bottom Glass Status Bar */
 .glass-statusbar {
   height: 28px;
@@ -397,10 +499,13 @@ body, html {
   border-radius: var(--radius-md);
   padding: 20px;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
-  transition: var(--transition-smooth);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+  will-change: transform;
 }
 
 .glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(45, 227, 200, 0.1);
   border-color: var(--border-hover);
 }
 
@@ -599,6 +704,19 @@ body, html {
   display: flex;
   align-items: center;
   gap: 12px;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+/* Hover: dim all other bars when hovering over list */
+.severity-bar-list:hover .sev-bar-item {
+  opacity: 0.35;
+}
+
+/* Brighten and highlight hovered bar */
+.severity-bar-list .sev-bar-item:hover {
+  opacity: 1 !important;
+  transform: translateX(4px);
 }
 
 .sev-bar-label {
@@ -606,6 +724,11 @@ body, html {
   font-size: 10px;
   font-weight: 700;
   color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+
+.sev-bar-item:hover .sev-bar-label {
+  color: var(--text-main);
 }
 
 .sev-bar-track {
@@ -616,18 +739,44 @@ body, html {
   border-radius: var(--radius-pill);
   overflow: hidden;
   position: relative;
+  transition: border-color 0.2s ease;
+}
+
+.sev-bar-item:hover .sev-bar-track {
+  border-color: var(--border-hover);
 }
 
 .sev-bar-fill {
   height: 100%;
   border-radius: var(--radius-pill);
-  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .sev-bar-fill.low { background: var(--low); box-shadow: 0 0 10px rgba(45, 227, 200, 0.4); }
 .sev-bar-fill.medium { background: var(--medium); box-shadow: 0 0 10px rgba(14, 138, 128, 0.4); }
 .sev-bar-fill.high { background: var(--high); }
 .sev-bar-fill.critical { background: var(--critical); box-shadow: 0 0 10px rgba(255, 42, 85, 0.5); }
+
+/* Hover brightening & glow boosting */
+.sev-bar-item:hover .sev-bar-fill.low {
+  background: #5effe8;
+  box-shadow: 0 0 16px rgba(45, 227, 200, 0.85);
+}
+
+.sev-bar-item:hover .sev-bar-fill.medium {
+  background: #18ded0;
+  box-shadow: 0 0 16px rgba(14, 138, 128, 0.85);
+}
+
+.sev-bar-item:hover .sev-bar-fill.high {
+  background: #0ea698;
+  box-shadow: 0 0 16px rgba(14, 166, 152, 0.7);
+}
+
+.sev-bar-item:hover .sev-bar-fill.critical {
+  background: #ff5274;
+  box-shadow: 0 0 18px rgba(255, 42, 85, 0.95);
+}
 
 .sev-bar-count {
   width: 30px;
@@ -996,19 +1145,183 @@ body, html {
 .log-line.alert { color: var(--critical); font-weight: bold; }
 
 /* =============================================================================
-   MINIMALIST REPORTS READER VIEW
+   SCANNING / PROCESSING LASER EFFECT
 ============================================================================= */
-.report-reader {
-  max-width: 860px;
-  margin: 0 auto;
+.scanning-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
+  height: 100%;
+  background: rgba(6, 21, 20, 0.78);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-radius: inherit;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: all;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.scanning-overlay.active {
+  opacity: 1;
+}
+
+.scanning-laser-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--cyan);
+  box-shadow: 0 0 16px 2px var(--cyan), 0 0 4px var(--mint);
+  animation: scanning-laser 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes scanning-laser {
+  0% {
+    top: 2%;
+    opacity: 0.3;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    top: 96%;
+    opacity: 0.3;
+  }
+}
+
+.scanning-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(2, 8, 8, 0.88);
+  border: 1px solid var(--border-hover);
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.25);
+  z-index: 2;
+}
+
+.scanning-badge .pulse-laser-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 8px var(--mint);
+  animation: pulse-glow 1s infinite alternate;
+}
+
+/* =============================================================================
+   AI THREAT ANALYSIS - TIGHT CSS GRID & PROOF LOG
+============================================================================= */
+.analysis-screen-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.analysis-top-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+}
+
+.analysis-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.proof-log-terminal {
+  max-height: 250px;
+  overflow-y: auto;
+  background: rgba(2, 8, 8, 0.85);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-family: "Consolas", monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--mint);
+}
+
+.proof-log-terminal::-webkit-scrollbar {
+  width: 5px;
+}
+
+.proof-log-terminal::-webkit-scrollbar-track {
+  background: rgba(2, 10, 10, 0.6);
+  border-radius: 3px;
+}
+
+.proof-log-terminal::-webkit-scrollbar-thumb {
+  background: var(--teal);
+  border-radius: 3px;
+  box-shadow: 0 0 6px rgba(14, 138, 128, 0.6);
+}
+
+.proof-log-terminal::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+}
+
+.findings-list-container {
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.findings-list-container::-webkit-scrollbar {
+  width: 5px;
+}
+
+.findings-list-container::-webkit-scrollbar-track {
+  background: rgba(2, 10, 10, 0.6);
+  border-radius: 3px;
+}
+
+.findings-list-container::-webkit-scrollbar-thumb {
+  background: var(--teal);
+  border-radius: 3px;
+}
+
+.findings-list-container::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan);
+}
+
+/* =============================================================================
+   REPORTS PREVIEW CONTAINER
+============================================================================= */
+.report-preview-container,
+.report-reader {
+  width: 100%;
+  max-width: 95%;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 24px 0;
+  padding: 10px 0 30px 0;
 }
 
+.report-preview-container .report-doc,
 .report-doc {
+  width: 100%;
   background: rgba(8, 20, 19, 0.85);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius-lg);
@@ -1017,6 +1330,25 @@ body, html {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  font-size: 13.5px;
+}
+
+.report-preview-container table,
+.report-preview-container .glass-table,
+.report-doc table,
+.report-doc .glass-table {
+  width: 100% !important;
+}
+
+.report-preview-container .meta-lbl,
+.report-doc .meta-lbl {
+  font-size: 12px;
+  width: 140px;
+}
+
+.report-preview-container .meta-val,
+.report-doc .meta-val {
+  font-size: 13px;
 }
 
 /* =============================================================================
