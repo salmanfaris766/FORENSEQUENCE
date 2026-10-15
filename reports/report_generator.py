@@ -435,6 +435,26 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             textColor=colors.HexColor("#1E293B"),
             wordWrap="CJK",
         ),
+        "StatLabel": ParagraphStyle(
+            "StatLabel",
+            parent=base["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=7.5,
+            leading=10,
+            alignment=1,
+            textColor=colors.HexColor("#475569"),
+            wordWrap="CJK",
+        ),
+        "StatVal": ParagraphStyle(
+            "StatVal",
+            parent=base["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=15,
+            leading=18,
+            alignment=1,
+            textColor=colors.HexColor("#0F172A"),
+            wordWrap="CJK",
+        ),
     }
 
     return custom_styles
@@ -549,10 +569,10 @@ def _build_executive_summary_section(
 
     stat_card_data = [
         [
-            Paragraph(f"<b>THREAT SCORE</b><br/><font size='16'><b>{risk_score} / 100</b></font>", styles["TableCellBold"]),
-            Paragraph(f"<b>RISK LEVEL</b><br/><font size='14'><b>{risk_level}</b></font>", styles["TableCellBold"]),
-            Paragraph(f"<b>EVIDENCE ITEMS</b><br/><font size='16'><b>{len(evidence_items)}</b></font>", styles["TableCellBold"]),
-            Paragraph(f"<b>DERIVED FINDINGS</b><br/><font size='16'><b>{len(findings_items)}</b></font>", styles["TableCellBold"]),
+            [Paragraph("THREAT SCORE", styles["StatLabel"]), Spacer(1, 4), Paragraph(f"{risk_score} / 100", styles["StatVal"])],
+            [Paragraph("RISK LEVEL", styles["StatLabel"]), Spacer(1, 4), Paragraph(f"{risk_level}", ParagraphStyle("StatRisk", parent=styles["StatVal"], textColor=risk_fg))],
+            [Paragraph("EVIDENCE ITEMS", styles["StatLabel"]), Spacer(1, 4), Paragraph(f"{len(evidence_items)}", styles["StatVal"])],
+            [Paragraph("DERIVED FINDINGS", styles["StatLabel"]), Spacer(1, 4), Paragraph(f"{len(findings_items)}", styles["StatVal"])],
         ]
     ]
 
@@ -567,8 +587,8 @@ def _build_executive_summary_section(
             ("BACKGROUND", (2, 0), (3, 0), colors.HexColor("#F8FAFC")),
             ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
             ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-            ("TOPPADDING", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 10),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
         ])
     )
     elements.append(stat_table)
@@ -634,10 +654,10 @@ def _build_evidence_section(
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E293B")),
             ("ALIGN", (0, 0), (-1, -1), "LEFT"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#F8FAFC"), colors.white]),
         ])
@@ -776,8 +796,8 @@ def _build_recommendations_section(
             ("ALIGN", (0, 0), (0, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("RIGHTPADDING", (0, 0), (-1, -1), 8),
         ])
@@ -843,10 +863,10 @@ def _build_timeline_section(
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E293B")),
             ("ALIGN", (0, 0), (-1, -1), "LEFT"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("LEFTPADDING", (0, 0), (-1, -1), 5),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#F8FAFC"), colors.white]),
         ])

@@ -1,6 +1,7 @@
-﻿ttkbootstrap
+ttkbootstrap
 watchdog
 pandas
 reportlab
 matplotlib
 pillow
+pywebview
