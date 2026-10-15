@@ -1,7 +1,7 @@
 /**
  * web/js/app.js
  * FORENSEQUENCE - PyWebview Frontend Controller & Application Router
- * Liquid Glassmorphism, 60FPS Canvas Charts, Holographic Risk Halo, and Slide-In Navigation
+ * Hardware-Accelerated 60 FPS Transitions, Parallel IPC Startup, and Zero-Teardown View Panels
  */
 
 // Application State
@@ -11,9 +11,21 @@ const AppState = {
   activeCaseData: null,
   dashboardData: null,
   cases: [],
+  settings: null,
   isMonitoring: false,
   monitorPollTimer: null,
   timeRange: "ALL",
+};
+
+// Panel Initialization Tracker (One-time DOM mount per view)
+const panelsInitialized = {
+  dashboard: false,
+  cases: false,
+  evidence: false,
+  analysis: false,
+  monitor: false,
+  reports: false,
+  settings: false,
 };
 
 // =============================================================================
@@ -80,7 +92,7 @@ function hideScanningOverlay(targetEl) {
 }
 
 // =============================================================================
-// APP INITIALIZATION & GLOBAL LIQUID LOADER
+// GLOBAL LOADER & STARTUP INITIALIZATION
 // =============================================================================
 let bridgeInitialized = false;
 
@@ -90,55 +102,81 @@ function hideGlobalLoader() {
     loader.classList.add("fade-out");
     setTimeout(() => {
       loader.style.display = "none";
-    }, 320);
+    }, 250);
   }
 }
 
-async function onBridgeReady() {
+async function initStartup() {
   if (bridgeInitialized) return;
   bridgeInitialized = true;
-  console.log("PyWebview Bridge initialized successfully.");
-  try {
-    // Initial data fetch and rendering
-    await loadRoute(AppState.currentRoute);
-    startMonitoringPoller();
-  } catch (err) {
-    console.error("Initialization error:", err);
-  } finally {
-    // Only hide #global-loader (with 300ms CSS fade-out) AFTER the first data payload is fully rendered
-    hideGlobalLoader();
-  }
+  console.log("Initializing parallel IPC startup sequence...");
+
+  const api = window.pywebview ? window.pywebview.api : null;
+  const pDashboard = api && typeof api.get_dashboard_data === "function"
+    ? api.get_dashboard_data()
+    : callApi("get_dashboard_data");
+  const pSettings = api && typeof api.get_settings === "function"
+    ? api.get_settings()
+    : callApi("get_settings");
+  const pCases = api && typeof api.get_cases === "function"
+    ? api.get_cases()
+    : callApi("get_cases");
+
+  Promise.all([pDashboard, pSettings, pCases])
+    .then(([dashData, settings, casesData]) => {
+      if (dashData) AppState.dashboardData = dashData;
+      if (settings) AppState.settings = settings;
+      if (casesData) {
+        AppState.cases = casesData;
+        if (casesData.length > 0 && !AppState.activeCaseId) {
+          AppState.activeCaseId = casesData[0].id;
+        }
+      }
+
+      // Render dashboard with preloaded data instantly
+      renderDashboard(dashData);
+      if (settings) applySettings(settings);
+
+      // Dismiss loader immediately as soon as data arrives (maximum 300ms total transition)
+      hideGlobalLoader();
+
+      // Start non-blocking background telemetry monitor
+      startMonitoringPoller();
+    })
+    .catch((err) => {
+      console.error("Parallel startup initialization failed:", err);
+      renderDashboard(null);
+      hideGlobalLoader();
+    });
 }
 
-// Wrap initial data fetch inside pywebviewready event listener
+// PyWebview Bridge Event Binding
 window.addEventListener("pywebviewready", () => {
-  onBridgeReady();
+  initStartup();
 });
 
+// DOMContentLoaded Event Binding
 document.addEventListener("DOMContentLoaded", () => {
-  initBackgroundWaves();
   initNavigation();
   initClock();
   initGlobalSearch();
   initDrawer();
   initModal();
 
-  // If pywebview bridge is already attached
   if (window.pywebview && window.pywebview.api) {
-    onBridgeReady();
+    initStartup();
   } else {
-    // Fallback polling for bridge or standalone browser preview
     let checkCount = 0;
     const interval = setInterval(() => {
       checkCount++;
       if (window.pywebview && window.pywebview.api) {
         clearInterval(interval);
-        onBridgeReady();
+        initStartup();
       } else if (checkCount > 15) {
         clearInterval(interval);
         if (!bridgeInitialized) {
           console.warn("Pywebview bridge not detected within 3 seconds, launching standalone state.");
-          onBridgeReady();
+          initStartup();
         }
       }
     }, 200);
@@ -146,76 +184,23 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =============================================================================
-// ANIMATED FLUID ORB BACKGROUND (60 FPS NATIVE CANVAS)
-// =============================================================================
-function initBackgroundWaves() {
-  const canvas = document.getElementById("bg-waves");
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-
-  let width = (canvas.width = window.innerWidth);
-  let height = (canvas.height = window.innerHeight);
-
-  window.addEventListener("resize", () => {
-    width = canvas.width = window.innerWidth;
-    height = canvas.height = window.innerHeight;
-  });
-
-  const orbs = [
-    { col: "#061C1A", bx: 0.22, by: 0.28, rx: 0.40, ry: 0.36, ax: 110, ay: 80, sx: 0.0016, sy: 0.0012, ph: 0.0 },
-    { col: "#041211", bx: 0.78, by: 0.32, rx: 0.44, ry: 0.40, ax: 120, ay: 90, sx: 0.0018, sy: 0.0015, ph: 1.8 },
-    { col: "#05221F", bx: 0.38, by: 0.76, rx: 0.42, ry: 0.38, ax: 130, ay: 75, sx: 0.0014, sy: 0.0018, ph: 3.4 },
-    { col: "#031413", bx: 0.84, by: 0.82, rx: 0.36, ry: 0.34, ax: 95, ay: 85, sx: 0.0022, sy: 0.0014, ph: 5.0 },
-  ];
-
-  let t = 0;
-
-  function render() {
-    t += 1;
-    ctx.fillStyle = "#020505";
-    ctx.fillRect(0, 0, width, height);
-
-    orbs.forEach((orb) => {
-      const tx = t * orb.sx + orb.ph;
-      const ty = t * orb.sy + orb.ph * 0.7;
-      const cx = width * orb.bx + orb.ax * Math.sin(tx);
-      const cy = height * orb.by + orb.ay * Math.cos(ty);
-      const rx = Math.max(120, width * orb.rx);
-      const ry = Math.max(90, height * orb.ry);
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-      ctx.fillStyle = orb.col;
-      ctx.fill();
-      ctx.restore();
-    });
-
-    requestAnimationFrame(render);
-  }
-
-  requestAnimationFrame(render);
-}
-
-// =============================================================================
-// ROUTER & NAVIGATION (WITH HARDWARE-ACCELERATED TRANSITIONS)
+// ROUTER & NAVIGATION (ZERO DOM TEARDOWN / HARDWARE ACCELERATED)
 // =============================================================================
 function initNavigation() {
   document.querySelectorAll(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => {
       const route = btn.dataset.route;
-      document.querySelectorAll(".nav-item").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      loadRoute(route);
+      switchTab(route);
     });
   });
 }
 
-async function loadRoute(route) {
+function switchTab(route) {
+  if (AppState.currentRoute === route && panelsInitialized[route]) return;
   AppState.currentRoute = route;
-  const viewport = document.getElementById("app-viewport");
-  const title = document.getElementById("toolbar-title");
 
+  // 1. Update toolbar title
+  const title = document.getElementById("toolbar-title");
   const titleMap = {
     dashboard: "SECURITY OPERATIONS",
     cases: "CASE INVESTIGATION",
@@ -227,142 +212,142 @@ async function loadRoute(route) {
   };
   if (title) title.textContent = titleMap[route] || "FORENSIC WORKSTATION";
 
-  // Hardware-accelerated transition: start at opacity 0, translateY 10px
-  if (viewport) {
-    viewport.classList.remove("active");
-    viewport.classList.add("view-transition");
-  }
+  // 2. Instant CSS class toggle on persistent view panels
+  document.querySelectorAll(".view-panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.id === `view-${route}`);
+  });
 
+  // 3. Update active nav button
+  document.querySelectorAll(".nav-item").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.route === route);
+  });
+
+  // 4. Update data for current route in background
+  loadRouteData(route);
+}
+
+async function loadRouteData(route) {
   switch (route) {
     case "dashboard":
-      await renderDashboard(viewport);
+      await renderDashboard();
       break;
     case "cases":
-      await renderCasesView(viewport);
+      await renderCasesView();
       break;
     case "evidence":
-      await renderEvidenceView(viewport);
+      await renderEvidenceView();
       break;
     case "analysis":
-      await renderAnalysisView(viewport);
+      await renderAnalysisView();
       break;
     case "monitor":
-      await renderMonitorView(viewport);
+      await renderMonitorView();
       break;
     case "reports":
-      await renderReportsView(viewport);
+      await renderReportsView();
       break;
     case "settings":
-      await renderSettingsView(viewport);
+      await renderSettingsView();
       break;
     default:
-      await renderDashboard(viewport);
-  }
-
-  // Smooth slide+fade in on next animation frame
-  if (viewport) {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        viewport.classList.add("active");
-      });
-    });
+      await renderDashboard();
   }
 }
 
 // =============================================================================
 // 1. DASHBOARD VIEW
 // =============================================================================
-async function renderDashboard(container) {
-  container.innerHTML = `
-    <div class="dashboard-header">
-      <h1 class="view-main-title">Security Operations</h1>
-      <div class="dashboard-controls">
-        <div class="segmented-pill" id="time-filter">
-          <button class="seg-btn ${AppState.timeRange === '24H' ? 'active' : ''}" data-val="24H">24H</button>
-          <button class="seg-btn ${AppState.timeRange === '7D' ? 'active' : ''}" data-val="7D">7D</button>
-          <button class="seg-btn ${AppState.timeRange === '30D' ? 'active' : ''}" data-val="30D">30D</button>
-          <button class="seg-btn ${AppState.timeRange === 'ALL' ? 'active' : ''}" data-val="ALL">ALL</button>
-        </div>
-        <button class="liquid-btn primary" id="btn-quick-new-case">+ NEW CASE</button>
-      </div>
-    </div>
+async function renderDashboard(preloadedData = null) {
+  const container = document.getElementById("view-dashboard");
+  if (!container) return;
 
-    <!-- 4 KPI Squircle Cards -->
-    <div class="kpi-grid">
-      <div class="kpi-card glass-card" data-metric="active">
-        <div class="kpi-val mint" id="kpi-active">--</div>
-        <div class="kpi-label">Active Investigations</div>
-      </div>
-      <div class="kpi-card glass-card" data-metric="evidence">
-        <div class="kpi-val cyan" id="kpi-evidence">--</div>
-        <div class="kpi-label">Evidence Artifacts</div>
-      </div>
-      <div class="kpi-card glass-card" data-metric="indicators">
-        <div class="kpi-val teal" id="kpi-indicators">--</div>
-        <div class="kpi-label">Threat Indicators</div>
-      </div>
-      <div class="kpi-card glass-card" data-metric="critical">
-        <div class="kpi-val critical" id="kpi-critical">--</div>
-        <div class="kpi-label">Critical Threats</div>
-      </div>
-    </div>
-
-    <!-- Analytics 2-Column Grid -->
-    <div class="analytics-grid">
-      <div class="glass-card">
-        <div class="chart-card-header">
-          <span class="chart-title">EVENT FREQUENCY & INTRUSION TIMELINE</span>
-          <span class="chart-badge">
-            <span class="live-dot"></span> STREAM ONLINE
-          </span>
-        </div>
-        <div class="chart-canvas-wrap">
-          <canvas id="timeline-chart-canvas"></canvas>
+  if (!panelsInitialized.dashboard) {
+    container.innerHTML = `
+      <div class="dashboard-header">
+        <h1 class="view-main-title">Security Operations</h1>
+        <div class="dashboard-controls">
+          <div class="segmented-pill" id="time-filter">
+            <button class="seg-btn ${AppState.timeRange === '24H' ? 'active' : ''}" data-val="24H">24H</button>
+            <button class="seg-btn ${AppState.timeRange === '7D' ? 'active' : ''}" data-val="7D">7D</button>
+            <button class="seg-btn ${AppState.timeRange === '30D' ? 'active' : ''}" data-val="30D">30D</button>
+            <button class="seg-btn ${AppState.timeRange === 'ALL' ? 'active' : ''}" data-val="ALL">ALL</button>
+          </div>
+          <button class="liquid-btn primary" id="btn-quick-new-case">+ NEW CASE</button>
         </div>
       </div>
 
-      <div class="glass-card">
-        <div class="chart-card-header">
-          <span class="chart-title">THREAT SEVERITY BREAKDOWN</span>
-          <span class="chart-badge" id="severity-total-badge">0 FINDINGS</span>
+      <!-- 4 KPI Squircle Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card glass-card" data-metric="active">
+          <div class="kpi-val mint" id="kpi-active">--</div>
+          <div class="kpi-label">Active Investigations</div>
         </div>
-        <div class="severity-bar-list" id="severity-bars">
-          <!-- Injected dynamically -->
+        <div class="kpi-card glass-card" data-metric="evidence">
+          <div class="kpi-val cyan" id="kpi-evidence">--</div>
+          <div class="kpi-label">Evidence Artifacts</div>
+        </div>
+        <div class="kpi-card glass-card" data-metric="indicators">
+          <div class="kpi-val teal" id="kpi-indicators">--</div>
+          <div class="kpi-label">Threat Indicators</div>
+        </div>
+        <div class="kpi-card glass-card" data-metric="critical">
+          <div class="kpi-val critical" id="kpi-critical">--</div>
+          <div class="kpi-label">Critical Threats</div>
         </div>
       </div>
-    </div>
 
-    <!-- Recent Forensic Activity -->
-    <div class="activity-card glass-card">
-      <div class="activity-header">
-        <span class="chart-title">RECENT FORENSIC ACTIVITY</span>
-        <span class="chart-badge" id="activity-case-count">0 ACTIVE CASES</span>
-      </div>
-      <div class="activity-table" id="activity-rows">
-        <!-- Injected dynamically -->
-      </div>
-    </div>
-  `;
+      <!-- Analytics 2-Column Grid -->
+      <div class="analytics-grid">
+        <div class="glass-card">
+          <div class="chart-card-header">
+            <span class="chart-title">EVENT FREQUENCY & INTRUSION TIMELINE</span>
+            <span class="chart-badge">
+              <span class="live-dot"></span> STREAM ONLINE
+            </span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="timeline-chart-canvas"></canvas>
+          </div>
+        </div>
 
-  // Time filter buttons
-  container.querySelectorAll("#time-filter .seg-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      container.querySelectorAll("#time-filter .seg-btn").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      AppState.timeRange = btn.dataset.val;
-      refreshDashboardMetrics();
+        <div class="glass-card">
+          <div class="chart-card-header">
+            <span class="chart-title">THREAT SEVERITY BREAKDOWN</span>
+            <span class="chart-badge" id="severity-total-badge">0 FINDINGS</span>
+          </div>
+          <div class="severity-bar-list" id="severity-bars"></div>
+        </div>
+      </div>
+
+      <!-- Recent Forensic Activity -->
+      <div class="activity-card glass-card">
+        <div class="activity-header">
+          <span class="chart-title">RECENT FORENSIC ACTIVITY</span>
+          <span class="chart-badge" id="activity-case-count">0 ACTIVE CASES</span>
+        </div>
+        <div class="activity-table" id="activity-rows"></div>
+      </div>
+    `;
+
+    // Time filter button bindings
+    container.querySelectorAll("#time-filter .seg-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        container.querySelectorAll("#time-filter .seg-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        AppState.timeRange = btn.dataset.val;
+        refreshDashboardMetrics();
+      });
     });
-  });
 
-  document.getElementById("btn-quick-new-case")?.addEventListener("click", () => {
-    openNewCaseModal();
-  });
+    document.getElementById("btn-quick-new-case")?.addEventListener("click", openNewCaseModal);
+    panelsInitialized.dashboard = true;
+  }
 
-  await refreshDashboardMetrics();
+  await refreshDashboardMetrics(preloadedData);
 }
 
-async function refreshDashboardMetrics() {
-  const data = await callApi("get_dashboard_data");
+async function refreshDashboardMetrics(preloadedData = null) {
+  const data = preloadedData || (await callApi("get_dashboard_data"));
   if (!data) return;
   AppState.dashboardData = data;
 
@@ -409,16 +394,16 @@ async function refreshDashboardMetrics() {
       .join("");
   }
 
-  // Draw Smooth Activity Timeline Chart (Chart.js Interactive Animations)
+  // Draw or update Timeline Chart
   renderTimelineChart(data.timeline_labels, data.timeline_counts);
 
   // Recent Activity Table
   const rowsContainer = document.getElementById("activity-rows");
   const countBadge = document.getElementById("activity-case-count");
-  if (countBadge) countBadge.textContent = `${data.recent_cases.length} ACTIVE CASES`;
+  if (countBadge) countBadge.textContent = `${(data.recent_cases || []).length} ACTIVE CASES`;
 
   if (rowsContainer) {
-    if (data.recent_cases.length === 0) {
+    if (!data.recent_cases || data.recent_cases.length === 0) {
       rowsContainer.innerHTML = `
         <div style="padding: 24px; text-align: center; color: var(--text-muted);">
           No active forensic investigations found. Click [+ NEW CASE] to initialize.
@@ -451,7 +436,7 @@ async function refreshDashboardMetrics() {
 
       // Bind drilldown clicks
       rowsContainer.querySelectorAll(".activity-row").forEach((row) => {
-        row.addEventListener("click", (e) => {
+        row.addEventListener("click", () => {
           const cid = row.dataset.id;
           openCaseDrawer(cid);
         });
@@ -461,7 +446,7 @@ async function refreshDashboardMetrics() {
 }
 
 // -----------------------------------------------------------------------------
-// TIMELINE CHART (CHART.JS INTERACTIVE WITH 60FPS NATIVE CANVAS FALLBACK)
+// TIMELINE CHART (REUSE INSTANCE FOR 60 FPS ZERO-LAG RENDERING)
 // -----------------------------------------------------------------------------
 let timelineChartInstance = null;
 
@@ -470,12 +455,15 @@ function renderTimelineChart(labels, counts) {
   if (!canvas) return;
 
   if (typeof Chart !== "undefined") {
-    const ctx = canvas.getContext("2d");
+    // If instance exists, update data directly without tearing down canvas context
     if (timelineChartInstance) {
-      timelineChartInstance.destroy();
-      timelineChartInstance = null;
+      timelineChartInstance.data.labels = labels;
+      timelineChartInstance.data.datasets[0].data = counts;
+      timelineChartInstance.update("none");
+      return;
     }
 
+    const ctx = canvas.getContext("2d");
     const gradient = ctx.createLinearGradient(0, 0, 0, 180);
     gradient.addColorStop(0, "rgba(0, 240, 255, 0.32)");
     gradient.addColorStop(0.4, "rgba(14, 138, 128, 0.15)");
@@ -490,14 +478,14 @@ function renderTimelineChart(labels, counts) {
             label: "Intrusion Events",
             data: counts,
             borderColor: "#00F0FF",
-            borderWidth: 2.5,
+            borderWidth: 2,
             backgroundColor: gradient,
             fill: true,
             tension: 0.4,
             pointBackgroundColor: "#020505",
             pointBorderColor: "#00F0FF",
             pointBorderWidth: 2,
-            pointRadius: 4,
+            pointRadius: 3,
             pointHoverRadius: 6,
             pointHoverBackgroundColor: "#2DE3C8",
             pointHoverBorderColor: "#FFFFFF",
@@ -509,7 +497,7 @@ function renderTimelineChart(labels, counts) {
         responsive: true,
         maintainAspectRatio: false,
         animation: {
-          duration: 1200,
+          duration: 200,
           easing: "easeOutQuart",
         },
         interaction: {
@@ -647,9 +635,9 @@ function drawBezierTimelineChart(labels, counts) {
     ctx.bezierCurveTo(mx, p0.y, mx, p1.y, p1.x, p1.y);
   }
   ctx.strokeStyle = "#00F0FF";
-  ctx.lineWidth = 2.5;
-  ctx.shadowColor = "rgba(0, 240, 255, 0.5)";
-  ctx.shadowBlur = 8;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = "rgba(0, 240, 255, 0.4)";
+  ctx.shadowBlur = 6;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
@@ -660,7 +648,7 @@ function drawBezierTimelineChart(labels, counts) {
     const col = isCrit ? "#FF2A55" : "#00F0FF";
 
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
     ctx.fillStyle = "#020505";
     ctx.strokeStyle = col;
     ctx.lineWidth = 2;
@@ -672,151 +660,176 @@ function drawBezierTimelineChart(labels, counts) {
 // =============================================================================
 // 2. CASE INVESTIGATION VIEW
 // =============================================================================
-async function renderCasesView(container) {
+async function renderCasesView() {
+  const container = document.getElementById("view-cases");
+  if (!container) return;
+
+  if (!panelsInitialized.cases) {
+    container.innerHTML = `
+      <div class="dashboard-header">
+        <h1 class="view-main-title">Case Investigation</h1>
+        <button class="liquid-btn primary" id="btn-create-case-view">+ INITIALIZE NEW CASE</button>
+      </div>
+
+      <div class="glass-card">
+        <div class="glass-table-wrap">
+          <table class="glass-table">
+            <thead>
+              <tr>
+                <th>CASE NUMBER</th>
+                <th>CASE TITLE</th>
+                <th>INVESTIGATOR</th>
+                <th>EVIDENCE</th>
+                <th>FINDINGS</th>
+                <th>STATUS</th>
+                <th>CREATED</th>
+                <th style="text-align: right;">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="cases-table-body">
+              <tr><td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">Loading cases...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("btn-create-case-view")?.addEventListener("click", openNewCaseModal);
+    panelsInitialized.cases = true;
+  }
+
   const cases = await callApi("get_cases");
   AppState.cases = cases || [];
+  const tbody = document.getElementById("cases-table-body");
 
-  container.innerHTML = `
-    <div class="dashboard-header">
-      <h1 class="view-main-title">Case Investigation</h1>
-      <button class="liquid-btn primary" id="btn-create-case-view">+ INITIALIZE NEW CASE</button>
-    </div>
-
-    <div class="glass-card">
-      <div class="glass-table-wrap">
-        <table class="glass-table">
-          <thead>
-            <tr>
-              <th>CASE NUMBER</th>
-              <th>CASE TITLE</th>
-              <th>INVESTIGATOR</th>
-              <th>EVIDENCE</th>
-              <th>FINDINGS</th>
-              <th>STATUS</th>
-              <th>CREATED</th>
-              <th style="text-align: right;">ACTION</th>
+  if (tbody) {
+    if (AppState.cases.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">No cases cataloged. Click [+ INITIALIZE NEW CASE] above.</td></tr>`;
+    } else {
+      tbody.innerHTML = AppState.cases
+        .map((c) => {
+          const status = (c.status || "OPEN").toUpperCase();
+          const dotCls = status === "OPEN" ? "open" : status === "INVESTIGATING" ? "investigating" : "closed";
+          return `
+            <tr data-id="${c.id}" class="clickable-case-row">
+              <td style="font-family: Consolas, monospace; font-weight: 700; color: var(--cyan);">${c.case_number}</td>
+              <td style="font-weight: 700;">${c.case_name}</td>
+              <td>${c.investigator || "Unassigned"}</td>
+              <td><span class="metric-pill evidence">${c.evidence_count} ARTIFACTS</span></td>
+              <td><span class="metric-pill findings">${c.findings_count} FINDINGS</span></td>
+              <td><span class="neon-dot ${dotCls}" style="display: inline-block; vertical-align: middle; margin-right: 6px;"></span> ${status}</td>
+              <td class="mono-hash">${(c.created_at || "").slice(0, 16)}</td>
+              <td style="text-align: right;">
+                <button class="liquid-btn secondary btn-case-open" data-id="${c.id}" style="height: 28px; padding: 0 12px; font-size: 10px;">DRILL DOWN</button>
+              </td>
             </tr>
-          </thead>
-          <tbody id="cases-table-body">
-            ${
-              AppState.cases.length === 0
-                ? `<tr><td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">No cases cataloged. Click [+ INITIALIZE NEW CASE] above.</td></tr>`
-                : AppState.cases
-                    .map((c) => {
-                      const status = (c.status || "OPEN").toUpperCase();
-                      const dotCls = status === "OPEN" ? "open" : status === "INVESTIGATING" ? "investigating" : "closed";
-                      return `
-                      <tr data-id="${c.id}" class="clickable-case-row">
-                        <td style="font-family: Consolas, monospace; font-weight: 700; color: var(--cyan);">${c.case_number}</td>
-                        <td style="font-weight: 700;">${c.case_name}</td>
-                        <td>${c.investigator || "Unassigned"}</td>
-                        <td><span class="metric-pill evidence">${c.evidence_count} ARTIFACTS</span></td>
-                        <td><span class="metric-pill findings">${c.findings_count} FINDINGS</span></td>
-                        <td><span class="neon-dot ${dotCls}" style="display: inline-block; vertical-align: middle; margin-right: 6px;"></span> ${status}</td>
-                        <td class="mono-hash">${(c.created_at || "").slice(0, 16)}</td>
-                        <td style="text-align: right;">
-                          <button class="liquid-btn secondary btn-case-open" data-id="${c.id}" style="height: 28px; padding: 0 12px; font-size: 10px;">DRILL DOWN</button>
-                        </td>
-                      </tr>
-                    `;
-                    })
-                    .join("")
-            }
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
+          `;
+        })
+        .join("");
 
-  document.getElementById("btn-create-case-view")?.addEventListener("click", openNewCaseModal);
+      tbody.querySelectorAll(".btn-case-open").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openCaseDrawer(btn.dataset.id);
+        });
+      });
 
-  container.querySelectorAll(".btn-case-open").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openCaseDrawer(btn.dataset.id);
-    });
-  });
-
-  container.querySelectorAll(".clickable-case-row").forEach((row) => {
-    row.addEventListener("click", () => {
-      openCaseDrawer(row.dataset.id);
-    });
-  });
+      tbody.querySelectorAll(".clickable-case-row").forEach((row) => {
+        row.addEventListener("click", () => {
+          openCaseDrawer(row.dataset.id);
+        });
+      });
+    }
+  }
 }
 
 // =============================================================================
 // 3. EVIDENCE EXPLORER VIEW
 // =============================================================================
-async function renderEvidenceView(container) {
-  const cases = await callApi("get_cases");
-  AppState.cases = cases || [];
+async function renderEvidenceView() {
+  const container = document.getElementById("view-evidence");
+  if (!container) return;
 
-  container.innerHTML = `
-    <div class="dashboard-header">
-      <h1 class="view-main-title">Evidence Explorer</h1>
-      <div style="display: flex; gap: 10px;">
-        <select id="evidence-case-select" class="liquid-btn secondary" style="background: var(--card-bg); color: var(--text-main); height: 36px;">
-          ${AppState.cases.map((c) => `<option value="${c.id}" ${AppState.activeCaseId === c.id ? "selected" : ""}>${c.case_number}: ${c.case_name}</option>`).join("")}
-        </select>
-        <button class="liquid-btn primary" id="btn-import-evidence">+ IMPORT ARTIFACT</button>
+  if (!panelsInitialized.evidence) {
+    container.innerHTML = `
+      <div class="dashboard-header">
+        <h1 class="view-main-title">Evidence Explorer</h1>
+        <div style="display: flex; gap: 10px;">
+          <select id="evidence-case-select" class="liquid-btn secondary" style="background: var(--card-bg); color: var(--text-main); height: 36px;"></select>
+          <button class="liquid-btn primary" id="btn-import-evidence">+ IMPORT ARTIFACT</button>
+        </div>
       </div>
-    </div>
 
-    <div class="glass-card" id="evidence-list-card">
-      <div class="glass-table-wrap">
-        <table class="glass-table">
-          <thead>
-            <tr>
-              <th>FILENAME</th>
-              <th>TYPE</th>
-              <th>INGESTED AT</th>
-              <th>SHA-256 CRYPTOGRAPHIC HASH</th>
-              <th style="text-align: right;">VERIFICATION</th>
-            </tr>
-          </thead>
-          <tbody id="evidence-table-body">
-            <!-- Loaded dynamically -->
-          </tbody>
-        </table>
+      <div class="glass-card" id="evidence-list-card">
+        <div class="glass-table-wrap">
+          <table class="glass-table">
+            <thead>
+              <tr>
+                <th>FILENAME</th>
+                <th>TYPE</th>
+                <th>INGESTED AT</th>
+                <th>SHA-256 CRYPTOGRAPHIC HASH</th>
+                <th style="text-align: right;">VERIFICATION</th>
+              </tr>
+            </thead>
+            <tbody id="evidence-table-body">
+              <tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted);">Select a case to inspect evidence artifacts.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-  `;
+    `;
 
-  const sel = document.getElementById("evidence-case-select");
-  if (sel) {
-    sel.addEventListener("change", () => {
+    const sel = document.getElementById("evidence-case-select");
+    sel?.addEventListener("change", () => {
       AppState.activeCaseId = parseInt(sel.value);
       loadEvidenceForCase(AppState.activeCaseId);
     });
+
+    document.getElementById("btn-import-evidence")?.addEventListener("click", async () => {
+      if (!AppState.activeCaseId) {
+        showToast("SELECT CASE", "Please select a target investigation case first.", true);
+        return;
+      }
+      const path = await callApi("select_file_dialog");
+      if (path) {
+        const card = document.getElementById("evidence-list-card");
+        showScanningOverlay(card, `HASHING & INGESTING ${path.split(/[\\/]/).pop()}...`);
+        showToast("INGESTING", `Hashing and importing ${path.split(/[\\/]/).pop()}...`);
+        try {
+          const res = await callApi("import_evidence", AppState.activeCaseId, path, "auto");
+          if (res && res.success) {
+            showToast("EVIDENCE INGESTED", `Verified SHA-256: ${res.file_hash.slice(0, 16)}...`);
+            loadEvidenceForCase(AppState.activeCaseId);
+          } else {
+            showToast("IMPORT FAILED", res?.error || "Unable to import artifact.", true);
+          }
+        } finally {
+          hideScanningOverlay(card);
+        }
+      }
+    });
+
+    panelsInitialized.evidence = true;
+  }
+
+  // Refresh cases select dropdown
+  if (AppState.cases.length === 0) {
+    const cases = await callApi("get_cases");
+    AppState.cases = cases || [];
+  }
+
+  const sel = document.getElementById("evidence-case-select");
+  if (sel) {
+    sel.innerHTML = AppState.cases
+      .map((c) => `<option value="${c.id}" ${AppState.activeCaseId === c.id ? "selected" : ""}>${c.case_number}: ${c.case_name}</option>`)
+      .join("");
+
     if (AppState.cases.length > 0) {
       AppState.activeCaseId = AppState.activeCaseId || AppState.cases[0].id;
       loadEvidenceForCase(AppState.activeCaseId);
     }
   }
-
-  document.getElementById("btn-import-evidence")?.addEventListener("click", async () => {
-    if (!AppState.activeCaseId) {
-      showToast("SELECT CASE", "Please select a target investigation case first.", true);
-      return;
-    }
-    const path = await callApi("select_file_dialog");
-    if (path) {
-      const card = document.getElementById("evidence-list-card");
-      showScanningOverlay(card, `HASHING & INGESTING ${path.split(/[\\/]/).pop()}...`);
-      showToast("INGESTING", `Hashing and importing ${path.split(/[\\/]/).pop()}...`);
-      try {
-        const res = await callApi("import_evidence", AppState.activeCaseId, path, "auto");
-        if (res && res.success) {
-          showToast("EVIDENCE INGESTED", `Verified SHA-256: ${res.file_hash.slice(0, 16)}...`);
-          loadEvidenceForCase(AppState.activeCaseId);
-        } else {
-          showToast("IMPORT FAILED", res?.error || "Unable to import artifact.", true);
-        }
-      } finally {
-        hideScanningOverlay(card);
-      }
-    }
-  });
 }
 
 async function loadEvidenceForCase(caseId) {
@@ -846,94 +859,107 @@ async function loadEvidenceForCase(caseId) {
 // =============================================================================
 // 4. AI THREAT ANALYSIS VIEW
 // =============================================================================
-async function renderAnalysisView(container) {
-  const cases = await callApi("get_cases");
-  AppState.cases = cases || [];
+async function renderAnalysisView() {
+  const container = document.getElementById("view-analysis");
+  if (!container) return;
 
-  container.innerHTML = `
-    <div class="dashboard-header">
-      <h1 class="view-main-title">AI Threat Analysis</h1>
-      <div style="display: flex; gap: 10px;">
-        <select id="analysis-case-select" class="liquid-btn secondary" style="background: var(--card-bg); color: var(--text-main); height: 36px;">
-          ${AppState.cases.map((c) => `<option value="${c.id}" ${AppState.activeCaseId === c.id ? "selected" : ""}>${c.case_number}: ${c.case_name}</option>`).join("")}
-        </select>
-        <button class="liquid-btn primary" id="btn-run-analysis-view">EVALUATE FORWARD CHAINING</button>
+  if (!panelsInitialized.analysis) {
+    container.innerHTML = `
+      <div class="dashboard-header">
+        <h1 class="view-main-title">AI Threat Analysis</h1>
+        <div style="display: flex; gap: 10px;">
+          <select id="analysis-case-select" class="liquid-btn secondary" style="background: var(--card-bg); color: var(--text-main); height: 36px;"></select>
+          <button class="liquid-btn primary" id="btn-run-analysis-view">EVALUATE FORWARD CHAINING</button>
+        </div>
       </div>
-    </div>
 
-    <!-- Tight CSS Grid Container -->
-    <div class="analysis-screen-grid" id="analysis-screen-container">
-      <!-- Top Grid: Holographic Risk Halo & Expert System Summary -->
-      <div class="analysis-top-grid">
-        <div class="halo-card glass-card">
-          <div class="halo-canvas-wrap">
-            <canvas id="halo-canvas-view" width="200" height="200"></canvas>
-            <div class="halo-center-info">
-              <span class="halo-score" id="view-halo-score">--</span>
-              <span class="halo-level" id="view-halo-level">ANALYSIS PENDING</span>
+      <div class="analysis-screen-grid" id="analysis-screen-container">
+        <!-- Top Grid: Holographic Risk Halo & Expert System Summary -->
+        <div class="analysis-top-grid">
+          <div class="halo-card glass-card">
+            <div class="halo-canvas-wrap">
+              <canvas id="halo-canvas-view" width="200" height="200"></canvas>
+              <div class="halo-center-info">
+                <span class="halo-score" id="view-halo-score">--</span>
+                <span class="halo-level" id="view-halo-level">ANALYSIS PENDING</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card" style="display: flex; flex-direction: column; gap: 12px; justify-content: center;">
+            <h3 style="font-size: 13px; font-weight: 800; color: var(--text-main); letter-spacing: 0.6px;">EXPERT SYSTEM REASONING SUMMARY</h3>
+            <p style="color: var(--text-secondary); font-size: 12px; line-height: 1.6;" id="view-analysis-summary">
+              Select an active investigation case and click [EVALUATE FORWARD CHAINING] to execute propositional inference rules, derive forensic findings, and calculate risk metrics.
+            </p>
+          </div>
+        </div>
+
+        <!-- Bottom Grid: Derived Findings & Explainable Proof Log -->
+        <div class="analysis-bottom-grid">
+          <div class="glass-card" style="display: flex; flex-direction: column;">
+            <h3 style="font-size: 11px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; letter-spacing: 0.5px;">DERIVED THREAT FINDINGS</h3>
+            <div id="view-findings-list" class="findings-list-container">
+              <div style="color: var(--text-muted); padding: 14px;">No risk findings derived yet.</div>
+            </div>
+          </div>
+
+          <div class="glass-card" style="display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h3 style="font-size: 11px; font-weight: 800; color: var(--text-main); letter-spacing: 0.5px;">EXPLAINABLE INFERENCE PROOF LOG</h3>
+              <span style="font-family: Consolas, monospace; font-size: 10px; color: var(--cyan); font-weight: 700;">PROPOSITIONAL TRACE</span>
+            </div>
+            <div class="proof-log-terminal" id="view-proof-log">
+              <div style="color: var(--text-muted);">Awaiting forward chaining execution. Click [EVALUATE FORWARD CHAINING] to generate deductive proof steps.</div>
             </div>
           </div>
         </div>
-
-        <div class="glass-card" style="display: flex; flex-direction: column; gap: 12px; justify-content: center;">
-          <h3 style="font-size: 13px; font-weight: 800; color: var(--text-main); letter-spacing: 0.6px;">EXPERT SYSTEM REASONING SUMMARY</h3>
-          <p style="color: var(--text-secondary); font-size: 12px; line-height: 1.6;" id="view-analysis-summary">
-            Select an active investigation case and click [EVALUATE FORWARD CHAINING] to execute propositional inference rules, derive forensic findings, and calculate risk metrics.
-          </p>
-        </div>
       </div>
+    `;
 
-      <!-- Bottom Grid: Derived Findings & Explainable Proof Log -->
-      <div class="analysis-bottom-grid">
-        <div class="glass-card" style="display: flex; flex-direction: column;">
-          <h3 style="font-size: 11px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; letter-spacing: 0.5px;">DERIVED THREAT FINDINGS</h3>
-          <div id="view-findings-list" class="findings-list-container">
-            <!-- Injected dynamically -->
-          </div>
-        </div>
-
-        <div class="glass-card" style="display: flex; flex-direction: column;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h3 style="font-size: 11px; font-weight: 800; color: var(--text-main); letter-spacing: 0.5px;">EXPLAINABLE INFERENCE PROOF LOG</h3>
-            <span style="font-family: Consolas, monospace; font-size: 10px; color: var(--cyan); font-weight: 700;">PROPOSITIONAL TRACE</span>
-          </div>
-          <div class="proof-log-terminal" id="view-proof-log">
-            <div style="color: var(--text-muted);">Awaiting forward chaining execution. Click [EVALUATE FORWARD CHAINING] to generate deductive proof steps.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const sel = document.getElementById("analysis-case-select");
-  if (sel) {
-    sel.addEventListener("change", () => {
+    const sel = document.getElementById("analysis-case-select");
+    sel?.addEventListener("change", () => {
       AppState.activeCaseId = parseInt(sel.value);
       loadAnalysisForCase(AppState.activeCaseId);
     });
+
+    document.getElementById("btn-run-analysis-view")?.addEventListener("click", async () => {
+      if (!AppState.activeCaseId) return;
+      const targetCard = document.getElementById("analysis-screen-container") || container;
+      showScanningOverlay(targetCard, "EVALUATING FORWARD CHAINING REASONING RULES...");
+      showToast("RUNNING INFERENCE", "Evaluating propositional logic rules...");
+      try {
+        const res = await callApi("run_analysis", AppState.activeCaseId);
+        if (res && res.success) {
+          showToast("ANALYSIS COMPLETE", `Derived ${res.findings_count} threat indicators.`);
+          await loadAnalysisForCase(AppState.activeCaseId, res.proof_steps);
+        } else {
+          showToast("ANALYSIS FAILED", res?.error || "Error running inference", true);
+        }
+      } finally {
+        hideScanningOverlay(targetCard);
+      }
+    });
+
+    panelsInitialized.analysis = true;
+  }
+
+  // Populate select options
+  if (AppState.cases.length === 0) {
+    const cases = await callApi("get_cases");
+    AppState.cases = cases || [];
+  }
+
+  const sel = document.getElementById("analysis-case-select");
+  if (sel) {
+    sel.innerHTML = AppState.cases
+      .map((c) => `<option value="${c.id}" ${AppState.activeCaseId === c.id ? "selected" : ""}>${c.case_number}: ${c.case_name}</option>`)
+      .join("");
+
     if (AppState.cases.length > 0) {
       AppState.activeCaseId = AppState.activeCaseId || AppState.cases[0].id;
       loadAnalysisForCase(AppState.activeCaseId);
     }
   }
-
-  document.getElementById("btn-run-analysis-view")?.addEventListener("click", async () => {
-    if (!AppState.activeCaseId) return;
-    const targetCard = document.getElementById("analysis-screen-container") || container;
-    showScanningOverlay(targetCard, "EVALUATING FORWARD CHAINING REASONING RULES...");
-    showToast("RUNNING INFERENCE", "Evaluating propositional logic rules...");
-    try {
-      const res = await callApi("run_analysis", AppState.activeCaseId);
-      if (res && res.success) {
-        showToast("ANALYSIS COMPLETE", `Derived ${res.findings_count} threat indicators.`);
-        await loadAnalysisForCase(AppState.activeCaseId, res.proof_steps);
-      } else {
-        showToast("ANALYSIS FAILED", res?.error || "Error running inference", true);
-      }
-    } finally {
-      hideScanningOverlay(targetCard);
-    }
-  });
 }
 
 async function loadAnalysisForCase(caseId, proofSteps = null) {
@@ -952,10 +978,8 @@ async function loadAnalysisForCase(caseId, proofSteps = null) {
     levelEl.style.color = level === "CRITICAL" ? "var(--critical)" : level === "HIGH" ? "var(--teal)" : "var(--mint)";
   }
 
-  // Draw Holographic Halo
   drawHolographicRiskHalo("halo-canvas-view", score, level);
 
-  // Summary
   const sumEl = document.getElementById("view-analysis-summary");
   if (sumEl) {
     sumEl.innerHTML = `
@@ -964,7 +988,6 @@ async function loadAnalysisForCase(caseId, proofSteps = null) {
     `;
   }
 
-  // Findings List
   const listEl = document.getElementById("view-findings-list");
   if (listEl) {
     if (detail.findings.length === 0) {
@@ -987,7 +1010,6 @@ async function loadAnalysisForCase(caseId, proofSteps = null) {
     }
   }
 
-  // Explainable Inference Proof Log (Reasoning Trace)
   const proofEl = document.getElementById("view-proof-log");
   if (proofEl) {
     const timestamp = new Date().toLocaleTimeString();
@@ -1029,7 +1051,7 @@ async function loadAnalysisForCase(caseId, proofSteps = null) {
 }
 
 // -----------------------------------------------------------------------------
-// FUTURISTIC HOLOGRAPHIC RISK HALO (MULTI-RING ROTATING CANVAS)
+// HOLOGRAPHIC RISK HALO (2D ROTATING ACCELERATED CANVAS)
 // -----------------------------------------------------------------------------
 function drawHolographicRiskHalo(canvasId, score, level) {
   const canvas = document.getElementById(canvasId);
@@ -1063,7 +1085,7 @@ function drawHolographicRiskHalo(canvasId, score, level) {
   ctx.strokeStyle = mainColor;
   ctx.lineWidth = 4;
   ctx.shadowColor = mainColor;
-  ctx.shadowBlur = 12;
+  ctx.shadowBlur = 10;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
@@ -1091,75 +1113,109 @@ function drawHolographicRiskHalo(canvasId, score, level) {
 // =============================================================================
 // 5. REAL-TIME MONITOR VIEW
 // =============================================================================
-async function renderMonitorView(container) {
+async function renderMonitorView() {
+  const container = document.getElementById("view-monitor");
+  if (!container) return;
+
+  if (!panelsInitialized.monitor) {
+    container.innerHTML = `
+      <div class="dashboard-header">
+        <h1 class="view-main-title">Real-time Monitor</h1>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="live-dot" id="monitor-pulse-dot"></span>
+          <span id="monitor-status-text" style="font-weight: 800; font-size: 11px;">STREAM IDLE</span>
+        </div>
+      </div>
+
+      <!-- Monitor Controls Bar -->
+      <div class="glass-card">
+        <div class="monitor-controls-bar">
+          <input type="text" id="monitor-target-path" class="search-pill" style="flex: 1; height: 38px;" placeholder="Enter file or directory path to observe...">
+          <button class="liquid-btn secondary" id="btn-browse-monitor">BROWSE FOLDER</button>
+          <button class="liquid-btn primary" id="btn-toggle-monitor">START MONITORING</button>
+        </div>
+      </div>
+
+      <!-- Live Terminal Stream Box -->
+      <div class="glass-card" style="padding: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <span class="chart-title">EVENT STREAM TERMINAL</span>
+          <button class="liquid-btn secondary" id="btn-clear-terminal" style="height: 26px; padding: 0 10px; font-size: 9px;">CLEAR</button>
+        </div>
+        <div class="terminal-box" id="terminal-stream">
+          <div class="log-line">[${new Date().toLocaleTimeString()}] Telemetry listener attached. Ready for file modifications or directory updates.</div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("btn-browse-monitor")?.addEventListener("click", async () => {
+      const p = await callApi("select_folder_dialog");
+      if (p) {
+        document.getElementById("monitor-target-path").value = p;
+      }
+    });
+
+    document.getElementById("btn-toggle-monitor")?.addEventListener("click", async () => {
+      const input = document.getElementById("monitor-target-path");
+      const target = input.value.trim();
+
+      if (AppState.isMonitoring) {
+        await callApi("stop_live_monitoring");
+        AppState.isMonitoring = false;
+        showToast("STREAM STOPPED", "Directory observation terminated.");
+        updateMonitorStatusUI(false);
+      } else {
+        showToast("STARTING STREAM", `Observing target: ${target || 'uploads'}`);
+        const res = await callApi("start_live_monitoring", target);
+        if (res && res.success) {
+          AppState.isMonitoring = true;
+          showToast("OBSERVER ACTIVE", "Live multi-source monitoring initialized.");
+          updateMonitorStatusUI(true);
+        } else {
+          showToast("OBSERVER FAILED", res?.error || "Could not launch watcher", true);
+        }
+      }
+    });
+
+    document.getElementById("btn-clear-terminal")?.addEventListener("click", () => {
+      const box = document.getElementById("terminal-stream");
+      if (box) box.innerHTML = "";
+    });
+
+    panelsInitialized.monitor = true;
+  }
+
   const status = await callApi("get_monitoring_status");
   AppState.isMonitoring = status?.is_monitoring || false;
-
-  container.innerHTML = `
-    <div class="dashboard-header">
-      <h1 class="view-main-title">Real-time Monitor</h1>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span class="live-dot ${AppState.isMonitoring ? 'pulse' : ''}" id="monitor-pulse-dot" style="background: ${AppState.isMonitoring ? 'var(--cyan)' : 'var(--text-muted)'}"></span>
-        <span id="monitor-status-text" style="font-weight: 800; font-size: 11px; color: ${AppState.isMonitoring ? 'var(--cyan)' : 'var(--text-muted)'}">${AppState.isMonitoring ? 'STREAM ACTIVE' : 'STREAM IDLE'}</span>
-      </div>
-    </div>
-
-    <!-- Monitor Controls Bar -->
-    <div class="glass-card">
-      <div class="monitor-controls-bar">
-        <input type="text" id="monitor-target-path" class="search-pill" style="flex: 1; height: 38px;" value="${status?.watched_path || ''}" placeholder="Enter file or directory path to observe...">
-        <button class="liquid-btn secondary" id="btn-browse-monitor">BROWSE FOLDER</button>
-        <button class="liquid-btn ${AppState.isMonitoring ? 'danger' : 'primary'}" id="btn-toggle-monitor">${AppState.isMonitoring ? 'STOP STREAM' : 'START MONITORING'}</button>
-      </div>
-    </div>
-
-    <!-- Live Terminal Stream Box -->
-    <div class="glass-card" style="padding: 16px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <span class="chart-title">EVENT STREAM TERMINAL</span>
-        <button class="liquid-btn secondary" id="btn-clear-terminal" style="height: 26px; padding: 0 10px; font-size: 9px;">CLEAR</button>
-      </div>
-      <div class="terminal-box" id="terminal-stream">
-        <div class="log-line">[${new Date().toLocaleTimeString()}] Telemetry listener attached. Ready for file modifications or directory updates.</div>
-      </div>
-    </div>
-  `;
-
-  document.getElementById("btn-browse-monitor")?.addEventListener("click", async () => {
-    const p = await callApi("select_folder_dialog");
-    if (p) {
-      document.getElementById("monitor-target-path").value = p;
-    }
-  });
-
-  document.getElementById("btn-toggle-monitor")?.addEventListener("click", async () => {
-    const input = document.getElementById("monitor-target-path");
-    const target = input.value.trim();
-
-    if (AppState.isMonitoring) {
-      await callApi("stop_live_monitoring");
-      AppState.isMonitoring = false;
-      showToast("STREAM STOPPED", "Directory observation terminated.");
-      renderMonitorView(container);
-    } else {
-      showToast("STARTING STREAM", `Observing target: ${target || 'uploads'}`);
-      const res = await callApi("start_live_monitoring", target);
-      if (res && res.success) {
-        AppState.isMonitoring = true;
-        showToast("OBSERVER ACTIVE", "Live multi-source monitoring initialized.");
-        renderMonitorView(container);
-      } else {
-        showToast("OBSERVER FAILED", res?.error || "Could not launch watcher", true);
-      }
-    }
-  });
-
-  document.getElementById("btn-clear-terminal")?.addEventListener("click", () => {
-    const box = document.getElementById("terminal-stream");
-    if (box) box.innerHTML = "";
-  });
+  const pathInput = document.getElementById("monitor-target-path");
+  if (pathInput && status?.watched_path) {
+    pathInput.value = status.watched_path;
+  }
+  updateMonitorStatusUI(AppState.isMonitoring);
 }
 
+function updateMonitorStatusUI(isMonitoring) {
+  const dot = document.getElementById("monitor-pulse-dot");
+  const text = document.getElementById("monitor-status-text");
+  const btn = document.getElementById("btn-toggle-monitor");
+
+  if (dot) {
+    dot.className = "live-dot " + (isMonitoring ? "pulse" : "");
+    dot.style.background = isMonitoring ? "var(--cyan)" : "var(--text-muted)";
+  }
+  if (text) {
+    text.textContent = isMonitoring ? "STREAM ACTIVE" : "STREAM IDLE";
+    text.style.color = isMonitoring ? "var(--cyan)" : "var(--text-muted)";
+  }
+  if (btn) {
+    btn.className = "liquid-btn " + (isMonitoring ? "danger" : "primary");
+    btn.textContent = isMonitoring ? "STOP STREAM" : "START MONITORING";
+  }
+}
+
+// -----------------------------------------------------------------------------
+// BATCHED LIVE MONITOR TELEMETRY STREAM POLLER (HIGH PERFORMANCE)
+// -----------------------------------------------------------------------------
 function startMonitoringPoller() {
   if (AppState.monitorPollTimer) clearInterval(AppState.monitorPollTimer);
 
@@ -1167,20 +1223,31 @@ function startMonitoringPoller() {
     const events = await callApi("poll_live_events");
     if (events && events.length > 0) {
       const term = document.getElementById("terminal-stream");
-      events.forEach((ev) => {
-        const line = document.createElement("div");
-        line.className = "log-line" + (ev.type === "FINDING" ? " alert" : "");
-        line.textContent = `[${ev.timestamp || new Date().toLocaleTimeString()}] [${(ev.type || "EVENT").toUpperCase()}] ${ev.filename || ""} ${JSON.stringify(ev.incremental_facts || ev)}`;
-        if (term) {
-          term.appendChild(line);
-          term.scrollTop = term.scrollHeight;
+      if (term) {
+        // Single DocumentFragment insertion to prevent layout recalculations
+        const fragment = document.createDocumentFragment();
+
+        events.forEach((ev) => {
+          const line = document.createElement("div");
+          line.className = "log-line" + (ev.type === "FINDING" ? " alert" : "");
+          line.textContent = `[${ev.timestamp || new Date().toLocaleTimeString()}] [${(ev.type || "EVENT").toUpperCase()}] ${ev.filename || ""} ${JSON.stringify(ev.incremental_facts || ev)}`;
+          fragment.appendChild(line);
+
+          // Toast notification for priority security triggers
+          if (ev.type === "FINDING" || (ev.incremental_facts && ev.incremental_facts.failed_logins > 0)) {
+            showToast("SECURITY EVENT", `Flagged activity detected in ${ev.filename || "observed stream"}`, true);
+          }
+        });
+
+        term.appendChild(fragment);
+
+        // Limit stream terminal history to the last 200 lines to keep memory lightweight
+        while (term.children.length > 200) {
+          term.removeChild(term.firstElementChild);
         }
 
-        // Trigger Toast for important triggers
-        if (ev.type === "FINDING" || (ev.incremental_facts && ev.incremental_facts.failed_logins > 0)) {
-          showToast("SECURITY EVENT", `Flagged activity detected in ${ev.filename || "observed stream"}`, true);
-        }
-      });
+        term.scrollTop = term.scrollHeight;
+      }
     }
   }, 200);
 }
@@ -1188,50 +1255,63 @@ function startMonitoringPoller() {
 // =============================================================================
 // 6. REPORTS READER VIEW
 // =============================================================================
-async function renderReportsView(container) {
-  const cases = await callApi("get_cases");
-  AppState.cases = cases || [];
+async function renderReportsView() {
+  const container = document.getElementById("view-reports");
+  if (!container) return;
 
-  container.innerHTML = `
-    <div class="dashboard-header">
-      <h1 class="view-main-title">Investigation Reports</h1>
-      <div style="display: flex; gap: 10px;">
-        <select id="report-case-select" class="liquid-btn secondary" style="background: var(--card-bg); color: var(--text-main); height: 36px;">
-          ${AppState.cases.map((c) => `<option value="${c.id}" ${AppState.activeCaseId === c.id ? "selected" : ""}>${c.case_number}: ${c.case_name}</option>`).join("")}
-        </select>
-        <button class="liquid-btn primary" id="btn-export-pdf-doc">GENERATE PDF REPORT</button>
+  if (!panelsInitialized.reports) {
+    container.innerHTML = `
+      <div class="dashboard-header">
+        <h1 class="view-main-title">Investigation Reports</h1>
+        <div style="display: flex; gap: 10px;">
+          <select id="report-case-select" class="liquid-btn secondary" style="background: var(--card-bg); color: var(--text-main); height: 36px;"></select>
+          <button class="liquid-btn primary" id="btn-export-pdf-doc">GENERATE PDF REPORT</button>
+        </div>
       </div>
-    </div>
 
-    <!-- Expanded Document Reader Layout -->
-    <div class="report-preview-container" id="report-reader-doc">
-      <!-- Injected dynamically -->
-    </div>
-  `;
+      <div class="report-preview-container" id="report-reader-doc">
+        <div style="text-align: center; padding: 40px; color: var(--text-muted);">Select a case to compile or review PDF reports.</div>
+      </div>
+    `;
 
-  const sel = document.getElementById("report-case-select");
-  if (sel) {
-    sel.addEventListener("change", () => {
+    const sel = document.getElementById("report-case-select");
+    sel?.addEventListener("change", () => {
       AppState.activeCaseId = parseInt(sel.value);
       loadReportReaderForCase(AppState.activeCaseId);
     });
+
+    document.getElementById("btn-export-pdf-doc")?.addEventListener("click", async () => {
+      if (!AppState.activeCaseId) return;
+      showToast("COMPILING REPORT", "Generating court-admissible PDF...");
+      const res = await callApi("generate_pdf_report", AppState.activeCaseId);
+      if (res && res.success) {
+        showToast("PDF GENERATED", `Saved to: ${res.filename}`);
+        loadReportReaderForCase(AppState.activeCaseId);
+      } else {
+        showToast("EXPORT ERROR", res?.error || "Error compiling report", true);
+      }
+    });
+
+    panelsInitialized.reports = true;
+  }
+
+  // Populate select options
+  if (AppState.cases.length === 0) {
+    const cases = await callApi("get_cases");
+    AppState.cases = cases || [];
+  }
+
+  const sel = document.getElementById("report-case-select");
+  if (sel) {
+    sel.innerHTML = AppState.cases
+      .map((c) => `<option value="${c.id}" ${AppState.activeCaseId === c.id ? "selected" : ""}>${c.case_number}: ${c.case_name}</option>`)
+      .join("");
+
     if (AppState.cases.length > 0) {
       AppState.activeCaseId = AppState.activeCaseId || AppState.cases[0].id;
       loadReportReaderForCase(AppState.activeCaseId);
     }
   }
-
-  document.getElementById("btn-export-pdf-doc")?.addEventListener("click", async () => {
-    if (!AppState.activeCaseId) return;
-    showToast("COMPILING REPORT", "Generating court-admissible PDF...");
-    const res = await callApi("generate_pdf_report", AppState.activeCaseId);
-    if (res && res.success) {
-      showToast("PDF GENERATED", `Saved to: ${res.filename}`);
-      loadReportReaderForCase(AppState.activeCaseId);
-    } else {
-      showToast("EXPORT ERROR", res?.error || "Error compiling report", true);
-    }
-  });
 }
 
 async function loadReportReaderForCase(caseId) {
@@ -1257,7 +1337,7 @@ async function loadReportReaderForCase(caseId) {
       </div>
 
       <!-- Executive Overview -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px;">
         <div class="glass-card" style="padding: 14px; text-align: center;">
           <div style="font-size: 9px; font-weight: 800; color: var(--text-muted);">THREAT SCORE</div>
           <div style="font-size: 24px; font-weight: 800; color: var(--mint); margin-top: 4px;">${risk.risk_score || 0} / 100</div>
@@ -1277,14 +1357,14 @@ async function loadReportReaderForCase(caseId) {
       </div>
 
       <!-- Case Meta Table -->
-      <div class="glass-card" style="padding: 16px;">
+      <div class="glass-card" style="padding: 16px; margin-top: 14px;">
         <div class="meta-row"><span class="meta-lbl">CASE TITLE:</span> <span class="meta-val">${c.case_name}</span></div>
         <div class="meta-row"><span class="meta-lbl">LEAD INVESTIGATOR:</span> <span class="meta-val">${c.investigator || 'Unassigned'}</span></div>
         <div class="meta-row"><span class="meta-lbl">DESCRIPTION:</span> <span class="meta-val">${c.description || 'No intake description logged.'}</span></div>
       </div>
 
       <!-- PDF Reports Archive -->
-      <div class="glass-card" style="padding: 16px;">
+      <div class="glass-card" style="padding: 16px; margin-top: 14px;">
         <h4 style="font-size: 11px; font-weight: 800; color: var(--text-main); margin-bottom: 10px;">COMPILED PDF REPORTS</h4>
         ${
           detail.reports.length === 0
@@ -1314,48 +1394,75 @@ async function loadReportReaderForCase(caseId) {
 // =============================================================================
 // 7. SETTINGS VIEW
 // =============================================================================
-async function renderSettingsView(container) {
-  const cfg = await callApi("get_settings");
+async function renderSettingsView() {
+  const container = document.getElementById("view-settings");
+  if (!container) return;
 
-  container.innerHTML = `
-    <div class="dashboard-header">
-      <h1 class="view-main-title">System Settings</h1>
-      <button class="liquid-btn primary" id="btn-save-settings">PERSIST CONFIGURATION</button>
-    </div>
-
-    <div class="glass-card" style="max-width: 640px; display: flex; flex-direction: column; gap: 16px;">
-      <div>
-        <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">DEFAULT INVESTIGATOR</label>
-        <input type="text" id="cfg-investigator" class="search-pill" style="width: 100%; height: 38px;" value="${cfg?.default_investigator || 'Salman'}">
+  if (!panelsInitialized.settings) {
+    container.innerHTML = `
+      <div class="dashboard-header">
+        <h1 class="view-main-title">System Settings</h1>
+        <button class="liquid-btn primary" id="btn-save-settings">PERSIST CONFIGURATION</button>
       </div>
 
-      <div>
-        <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">EXPORT DIRECTORY</label>
-        <input type="text" id="cfg-export" class="search-pill" style="width: 100%; height: 38px;" value="${cfg?.export_directory || 'uploads'}">
-      </div>
+      <div class="glass-card" style="max-width: 640px; display: flex; flex-direction: column; gap: 16px;">
+        <div>
+          <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">DEFAULT INVESTIGATOR</label>
+          <input type="text" id="cfg-investigator" class="search-pill" style="width: 100%; height: 38px;">
+        </div>
 
-      <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 8px;">
-        <span style="font-size: 12px; font-weight: 700; color: var(--text-main);">Auto-Run AI Inference on Evidence Ingestion</span>
-        <input type="checkbox" id="cfg-auto-ai" ${cfg?.auto_run_analysis ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: var(--mint);">
-      </div>
+        <div>
+          <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">EXPORT DIRECTORY</label>
+          <input type="text" id="cfg-export" class="search-pill" style="width: 100%; height: 38px;">
+        </div>
 
-      <div style="display: flex; align-items: center; justify-content: space-between;">
-        <span style="font-size: 12px; font-weight: 700; color: var(--text-main);">Live Watcher Polling Interval (ms)</span>
-        <input type="number" id="cfg-poll" class="search-pill" style="width: 120px; height: 34px; text-align: center;" value="${cfg?.live_poll_interval_ms || 200}">
-      </div>
-    </div>
-  `;
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 8px;">
+          <span style="font-size: 12px; font-weight: 700; color: var(--text-main);">Auto-Run AI Inference on Evidence Ingestion</span>
+          <input type="checkbox" id="cfg-auto-ai" style="width: 18px; height: 18px; accent-color: var(--mint);">
+        </div>
 
-  document.getElementById("btn-save-settings")?.addEventListener("click", async () => {
-    const payload = {
-      default_investigator: document.getElementById("cfg-investigator").value.trim(),
-      export_directory: document.getElementById("cfg-export").value.trim(),
-      auto_run_analysis: document.getElementById("cfg-auto-ai").checked,
-      live_poll_interval_ms: parseInt(document.getElementById("cfg-poll").value) || 200,
-    };
-    await callApi("save_settings", payload);
-    showToast("SETTINGS SAVED", "Configuration persisted to config.json.");
-  });
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 12px; font-weight: 700; color: var(--text-main);">Live Watcher Polling Interval (ms)</span>
+          <input type="number" id="cfg-poll" class="search-pill" style="width: 120px; height: 34px; text-align: center;">
+        </div>
+      </div>
+    `;
+
+    document.getElementById("btn-save-settings")?.addEventListener("click", async () => {
+      const payload = {
+        default_investigator: document.getElementById("cfg-investigator").value.trim(),
+        export_directory: document.getElementById("cfg-export").value.trim(),
+        auto_run_analysis: document.getElementById("cfg-auto-ai").checked,
+        live_poll_interval_ms: parseInt(document.getElementById("cfg-poll").value) || 200,
+      };
+      await callApi("save_settings", payload);
+      AppState.settings = payload;
+      showToast("SETTINGS SAVED", "Configuration persisted to config.json.");
+    });
+
+    panelsInitialized.settings = true;
+  }
+
+  if (AppState.settings) {
+    applySettings(AppState.settings);
+  } else {
+    const cfg = await callApi("get_settings");
+    if (cfg) applySettings(cfg);
+  }
+}
+
+function applySettings(settings) {
+  if (!settings) return;
+  AppState.settings = settings;
+  const inv = document.getElementById("cfg-investigator");
+  const exp = document.getElementById("cfg-export");
+  const autoAi = document.getElementById("cfg-auto-ai");
+  const poll = document.getElementById("cfg-poll");
+
+  if (inv) inv.value = settings.default_investigator || "Salman";
+  if (exp) exp.value = settings.export_directory || "uploads";
+  if (autoAi) autoAi.checked = !!settings.auto_run_analysis;
+  if (poll) poll.value = settings.live_poll_interval_ms || 200;
 }
 
 // =============================================================================
@@ -1383,8 +1490,10 @@ async function openCaseDrawer(caseId) {
   const c = detail.case;
   const risk = detail.risk || {};
 
-  document.getElementById("drawer-case-num").textContent = c.case_number;
-  document.getElementById("drawer-case-name").textContent = c.case_name;
+  const numEl = document.getElementById("drawer-case-num");
+  const nameEl = document.getElementById("drawer-case-name");
+  if (numEl) numEl.textContent = c.case_number;
+  if (nameEl) nameEl.textContent = c.case_name;
 
   content.innerHTML = `
     <!-- Top Risk Halo & Case Metadata -->
@@ -1441,7 +1550,7 @@ async function openCaseDrawer(caseId) {
           : detail.findings
               .map(
                 (f) => `
-            <div style="background: rgba(6, 21, 20, 0.6); border: 1px solid var(--border-secondary); border-radius: 10px; padding: 12px;">
+            <div style="background: rgba(6, 21, 20, 0.6); border: 1px solid var(--border-secondary); border-radius: 10px; padding: 12px; margin-bottom: 8px;">
               <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
                 <span style="font-family: Consolas, monospace; color: var(--cyan); font-weight: 700;">[${f.rule_code}]</span>
                 <span style="color: ${f.severity >= 50 ? 'var(--critical)' : 'var(--mint)'}; font-weight: 700;">+${f.severity} PTS</span>
@@ -1470,10 +1579,8 @@ async function openCaseDrawer(caseId) {
     </div>
   `;
 
-  // Draw Drawer Risk Halo
   drawHolographicRiskHalo("drawer-halo-canvas", risk.risk_score || 0, risk.risk_level || "LOW");
 
-  // Tab switching inside drawer
   content.querySelectorAll(".drawer-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       content.querySelectorAll(".drawer-tab").forEach((t) => t.classList.remove("active"));
@@ -1484,28 +1591,6 @@ async function openCaseDrawer(caseId) {
     });
   });
 
-  // Drawer top action buttons
-  document.getElementById("btn-drawer-run-ai")?.addEventListener("click", async () => {
-    const drawerContent = document.getElementById("drawer-content");
-    showScanningOverlay(drawerContent, "FORWARD CHAINING INFERENCE ENGINE RUNNING...");
-    showToast("RUNNING INFERENCE", "Evaluating reasoning engine...");
-    try {
-      await callApi("run_analysis", AppState.activeCaseId);
-      openCaseDrawer(AppState.activeCaseId);
-    } finally {
-      hideScanningOverlay(drawerContent);
-    }
-  });
-
-  document.getElementById("btn-drawer-pdf")?.addEventListener("click", async () => {
-    showToast("COMPILING REPORT", "Generating PDF...");
-    const res = await callApi("generate_pdf_report", AppState.activeCaseId);
-    if (res && res.success) {
-      showToast("PDF READY", `Saved to: ${res.filename}`);
-    }
-  });
-
-  // Update Top Context Badge
   const ctxBadge = document.getElementById("case-context-badge");
   if (ctxBadge) {
     ctxBadge.textContent = `ACTIVE: ${c.case_number}`;
@@ -1539,7 +1624,7 @@ function openNewCaseModal() {
       </div>
       <div>
         <label style="display: block; font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">CASE TITLE</label>
-        <input type="text" id="modal-case-name" class="search-pill" style="width: 100%; height: 36px;" placeholder="e.g. Host Intrusion & Data Exfiltration">
+        <input type="text" id="modal-case-name" class="search-pill" style="width: 100%; height: 36px;" placeholder="e.g. Host Intrusion and Data Exfiltration">
       </div>
       <div>
         <label style="display: block; font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">ASSIGNED INVESTIGATOR</label>
@@ -1581,7 +1666,13 @@ function openNewCaseModal() {
     if (res && res.success) {
       closeModal();
       showToast("CASE CREATED", `Initialized case ${res.case_number}`);
-      loadRoute(AppState.currentRoute);
+      const cases = await callApi("get_cases");
+      AppState.cases = cases || [];
+      if (AppState.currentRoute === "dashboard") {
+        refreshDashboardMetrics();
+      } else if (AppState.currentRoute === "cases") {
+        renderCasesView();
+      }
     } else {
       showToast("ERROR", res?.error || "Could not create case", true);
     }
@@ -1615,8 +1706,8 @@ function showToast(title, message, isCritical = false) {
 
   setTimeout(() => {
     toast.classList.remove("show");
-    setTimeout(() => toast.remove(), 350);
-  }, 4500);
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
 }
 
 // =============================================================================

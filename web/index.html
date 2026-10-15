@@ -7,8 +7,12 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- Animated Liquid Wave Background Canvas -->
-  <canvas id="bg-waves"></canvas>
+  <!-- High-Performance CSS Animated Gradient Wave Background -->
+  <div id="bg-waves">
+    <div class="wave-orb wave-orb-1"></div>
+    <div class="wave-orb wave-orb-2"></div>
+    <div class="wave-orb wave-orb-3"></div>
+  </div>
 
   <!-- Global Initialization Loader -->
   <div id="global-loader">
@@ -113,9 +117,15 @@
         </div>
       </header>
 
-      <!-- Dynamic Viewport -->
+      <!-- Dynamic Hardware-Accelerated Viewport -->
       <main id="app-viewport">
-        <!-- Views rendered by app.js -->
+        <section id="view-dashboard" class="view-panel active"></section>
+        <section id="view-cases" class="view-panel"></section>
+        <section id="view-evidence" class="view-panel"></section>
+        <section id="view-analysis" class="view-panel"></section>
+        <section id="view-monitor" class="view-panel"></section>
+        <section id="view-reports" class="view-panel"></section>
+        <section id="view-settings" class="view-panel"></section>
       </main>
 
       <!-- Bottom Status Bar -->
