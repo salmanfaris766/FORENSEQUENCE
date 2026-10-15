@@ -112,11 +112,11 @@ class AnimatedWaveBackground(tk.Canvas):
         self._anim_id: Optional[str] = None
         self._poly_ids = []
 
-        # Wave layer specs: (fill_color, base_y_ratio, amp_ratio, freq, speed, phase)
+        # Wave layer specs: (fill_color, line_color, base_y_ratio, amp_ratio, freq, speed, phase)
         self._wave_specs = [
-            ("#04100F", 0.60, 0.12, 0.003, 0.015, 0.0),
-            ("#061514", 0.72, 0.10, 0.004, 0.022, 1.8),
-            ("#0A2422", 0.84, 0.08, 0.005, 0.028, 3.5),
+            ("#062523", "#0E8A80", 0.52, 0.12, 0.004, 0.015, 0.0),
+            ("#0A3936", "#14B8A6", 0.68, 0.10, 0.005, 0.022, 1.8),
+            ("#0F4E4A", "#22D3C5", 0.84, 0.08, 0.006, 0.028, 3.5),
         ]
 
         self.bind("<Destroy>", self._on_destroy)
@@ -132,14 +132,14 @@ class AnimatedWaveBackground(tk.Canvas):
         if w > 10 and h > 10:
             self.time_offset += 1.0
 
-            step_px = max(20, w // 40)
+            step_px = max(15, w // 45)
             x_pts = list(range(0, w + step_px, step_px))
             if x_pts[-1] < w:
                 x_pts.append(w)
 
-            for i, (color, base_r, amp_r, freq, speed, phase) in enumerate(self._wave_specs):
+            for i, (fill_c, line_c, base_r, amp_r, freq, speed, phase) in enumerate(self._wave_specs):
                 base_y = h * base_r
-                amp = h * amp_r
+                amp = max(18.0, h * amp_r)
                 t = self.time_offset * speed + phase
 
                 coords = [0, h]
@@ -149,7 +149,7 @@ class AnimatedWaveBackground(tk.Canvas):
                 coords.extend([w, h])
 
                 if i >= len(self._poly_ids):
-                    pid = self.create_polygon(coords, fill=color, outline="", smooth=True)
+                    pid = self.create_polygon(coords, fill=fill_c, outline=line_c, width=1.5, smooth=True)
                     self._poly_ids.append(pid)
                 else:
                     self.coords(self._poly_ids[i], *coords)
@@ -323,19 +323,10 @@ class AppShell(ttk.Frame):
         """Assemble liquid cool workstation desktop chrome: animated background, 280px sidebar, glass search, content."""
         self.configure(style="TFrame")
 
-        # Animated flowing background at the very back of AppShell
-        self.wave_bg = AnimatedWaveBackground(self)
-        self.wave_bg.place(x=0, y=0, relwidth=1.0, relheight=1.0)
-        tk.Misc.lower(self.wave_bg)
-
-        # Outer horizontal split container: Sidebar (Left) + Workstation Main (Right)
-        self.outer_split = ttk.Frame(self, style="TFrame")
-        self.outer_split.pack(fill="both", expand=True)
-
         # ---------------------------------------------------------------------
         # 1. Left Sidebar (280px Fixed Width, Liquid Glass styling)
         # ---------------------------------------------------------------------
-        self.sidebar_container = ttk.Frame(self.outer_split, width=280, style="Panel.TFrame")
+        self.sidebar_container = ttk.Frame(self, width=280, style="Panel.TFrame")
         self.sidebar_container._custom_bg = SIDEBAR_BG
         self.sidebar_container.pack(side="left", fill="y")
         self.sidebar_container.pack_propagate(False)
@@ -413,23 +404,23 @@ class AppShell(ttk.Frame):
         # ---------------------------------------------------------------------
         # 2. Main Right Workstation Area (Top Toolbar + Content + Status Bar)
         # ---------------------------------------------------------------------
-        self.workstation_area = ttk.Frame(self.outer_split, style="TFrame")
+        self.workstation_area = tk.Frame(self, bg="#000000")
         self.workstation_area.pack(side="left", fill="both", expand=True)
 
         # --- Top Toolbar (Transparent feel, floating glass squircle search bar) ---
-        self.top_toolbar = tk.Frame(self.workstation_area, height=48, bg=APP_BG)
+        self.top_toolbar = tk.Frame(self.workstation_area, height=48, bg="#000000")
         self.top_toolbar.pack(fill="x", side="top")
         self.top_toolbar.pack_propagate(False)
 
         # Left Toolbar: Breadcrumb Trail
-        self.breadcrumb_frame = tk.Frame(self.top_toolbar, bg=APP_BG)
+        self.breadcrumb_frame = tk.Frame(self.top_toolbar, bg="#000000")
         self.breadcrumb_frame.pack(side="left", padx=SP_4, fill="y")
 
         self.lbl_breadcrumb_prefix = tk.Label(
             self.breadcrumb_frame,
             text="WORKSTATION /",
             fg=TEXT_MUTED,
-            bg=APP_BG,
+            bg="#000000",
             font=(FONT_FALLBACK, FS_SM, "bold"),
         )
         self.lbl_breadcrumb_prefix.pack(side="left", pady=13)
@@ -438,7 +429,7 @@ class AppShell(ttk.Frame):
             self.breadcrumb_frame,
             text="DASHBOARD",
             fg=TEXT_PRIMARY,
-            bg=APP_BG,
+            bg="#000000",
             font=(FONT_FALLBACK, FS_SM, "bold"),
         )
         self.lbl_breadcrumb_active.pack(side="left", padx=(4, 0), pady=13)
@@ -484,20 +475,20 @@ class AppShell(ttk.Frame):
         self.entry_search.bind("<Return>", self._on_global_search)
 
         # Right Toolbar: Case Context Badge + Live Status Indicator Dot
-        self.toolbar_right = tk.Frame(self.top_toolbar, bg=APP_BG)
+        self.toolbar_right = tk.Frame(self.top_toolbar, bg="#000000")
         self.toolbar_right.pack(side="right", padx=SP_4, fill="y")
 
-        self.case_badge_container = tk.Frame(self.toolbar_right, bg=APP_BG)
+        self.case_badge_container = tk.Frame(self.toolbar_right, bg="#000000")
         self.case_badge_container.pack(side="left", padx=(0, SP_3), pady=8)
-        self.case_badge = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEAL_MID, bg=APP_BG)
+        self.case_badge = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEAL_MID, bg="#000000")
         self.case_badge.pack(side="left")
 
         # Live Status Indicator Dot & Label
-        self.status_box = tk.Frame(self.toolbar_right, bg=APP_BG)
+        self.status_box = tk.Frame(self.toolbar_right, bg="#000000")
         self.status_box.pack(side="left", pady=13)
 
         self.dot_canvas = tk.Canvas(
-            self.status_box, width=12, height=12, bg=APP_BG, highlightthickness=0, bd=0
+            self.status_box, width=12, height=12, bg="#000000", highlightthickness=0, bd=0
         )
         self.dot_canvas.pack(side="left", padx=(0, 6))
         self.dot_item = self.dot_canvas.create_oval(2, 2, 10, 10, fill=CYAN, outline="")
@@ -506,7 +497,7 @@ class AppShell(ttk.Frame):
             self.status_box,
             text="STATUS: IDLE",
             fg=TEXT_SECONDARY,
-            bg=APP_BG,
+            bg="#000000",
             font=(FONT_MONO_FALLBACK, FS_XS, "bold"),
         )
         self.status_label.pack(side="left")
@@ -546,9 +537,16 @@ class AppShell(ttk.Frame):
         )
         self.clock_label.pack(side="right", padx=SP_4)
 
-        # --- Central Screen Container Area (Clean borders letting background wave show through) ---
-        self.content_container = ttk.Frame(self.workstation_area, style="TFrame")
-        self.content_container.pack(fill="both", expand=True, padx=4, pady=4)
+        # --- Central Screen Container Area with animated wave background ---
+        # The wave canvas is embedded INSIDE the content container so it's
+        # actually visible (Tkinter frames are always opaque, so placing a
+        # canvas behind a Frame makes it invisible).
+        self.content_container = tk.Frame(self.workstation_area, bg="#000000")
+        self.content_container.pack(fill="both", expand=True, padx=8, pady=(0, 4))
+
+        # Animated wave background fills the content area
+        self.wave_bg = AnimatedWaveBackground(self.content_container)
+        self.wave_bg.place(x=0, y=0, relwidth=1.0, relheight=1.0)
 
     # -------------------------------------------------------------------------
     # Screen Routing & Lifecycle

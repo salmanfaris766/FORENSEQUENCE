@@ -121,7 +121,7 @@ class SplashScreen(ttk.Frame):
         if not self._is_active:
             return
 
-        total_ticks = 45  # ~1.35-1.5s total duration
+        total_ticks = 14  # ~0.42s total duration for snappy boot
         progress = min(1.0, count / total_ticks)
         fill_w = int(self.bar_width * progress)
         self.bar_canvas.coords(self.fill_bar, 0, 0, fill_w, self.bar_height)
@@ -134,7 +134,7 @@ class SplashScreen(ttk.Frame):
         if count < total_ticks:
             self.after(30, lambda: self._tick(count + 1))
         else:
-            self.after(100, self._finish)
+            self.after(50, self._finish)
 
     def _finish(self) -> None:
         """Transition into the main shell."""

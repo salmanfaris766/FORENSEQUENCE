@@ -1,6 +1,7 @@
 # =============================================================================
 # gui/dashboard_frame.py
 # FORENSEQUENCE - Sentinel Nexus Desktop Threat Intelligence Dashboard
+# Liquid Glass Redesign: All panels use PIL-based translucent squircle cards
 # =============================================================================
 
 from __future__ import annotations
@@ -58,6 +59,7 @@ from gui.theme import (
     create_soc_badge,
     create_section_header,
     create_divider,
+    create_liquid_squircle,
 )
 
 from database import (
@@ -68,12 +70,17 @@ from database import (
     get_case_by_id,
 )
 
+# Transparent base color matching the wave canvas behind the content area
+_TRANSPARENT_BG = "#000000"
+
 
 class DashboardFrame(ttk.Frame):
     """
     Sentinel Nexus Threat Intelligence Dashboard Screen.
-    Displays real-time KPI metrics, embedded Matplotlib intrusion timeline & severity
-    distribution charts, and recent forensic activity queried live from SQLite.
+    Displays real-time KPI metrics inside liquid glass squircle cards,
+    embedded Matplotlib intrusion timeline & severity distribution charts,
+    and recent forensic activity queried live from SQLite.
+    All panels use PIL-based translucent glass cards for the glassmorphism effect.
     """
 
     def __init__(
@@ -106,21 +113,58 @@ class DashboardFrame(ttk.Frame):
         """Construct the complete visual hierarchy of the Sentinel Nexus dashboard."""
         self.configure(style="TFrame")
 
+        # Scrollable host: Canvas with dark background.
+        # The animated wave canvas in the shell's content_container shows
+        # through the padding gaps around this frame.
+        self._outer_canvas = tk.Canvas(self, bg=_TRANSPARENT_BG, highlightthickness=0, bd=0)
+        self._outer_scrollbar = ttk.Scrollbar(self, orient="vertical", command=self._outer_canvas.yview)
+        self._outer_canvas.configure(yscrollcommand=self._outer_scrollbar.set)
+
+        self._scroll_host = tk.Frame(self._outer_canvas, bg=_TRANSPARENT_BG)
+        self._scroll_window_id = self._outer_canvas.create_window(
+            (0, 0), window=self._scroll_host, anchor="nw"
+        )
+
+        def _on_host_configure(event):
+            self._outer_canvas.configure(scrollregion=self._outer_canvas.bbox("all"))
+
+        def _on_canvas_configure(event):
+            self._outer_canvas.itemconfig(self._scroll_window_id, width=event.width)
+
+        self._scroll_host.bind("<Configure>", _on_host_configure)
+        self._outer_canvas.bind("<Configure>", _on_canvas_configure)
+
+        def _on_mousewheel(event):
+            try:
+                if self._outer_canvas.winfo_exists():
+                    self._outer_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            except Exception:
+                pass
+
+        self._outer_canvas.bind("<Enter>", lambda _: self._outer_canvas.bind_all("<MouseWheel>", _on_mousewheel))
+        self._outer_canvas.bind("<Leave>", lambda _: self._outer_canvas.unbind_all("<MouseWheel>"))
+
+        self._outer_scrollbar.pack(side="right", fill="y")
+        self._outer_canvas.pack(side="left", fill="both", expand=True)
+
+        # All content builds inside self._scroll_host from here
+        host = self._scroll_host
+
         # ---------------------------------------------------------------------
-        # A) Workspace Header Bar
+        # A) Workspace Header Bar (transparent background)
         # ---------------------------------------------------------------------
-        self.header_bar = tk.Frame(self, bg=APP_BG)
+        self.header_bar = tk.Frame(host, bg=_TRANSPARENT_BG)
         self.header_bar.pack(fill="x", padx=SP_4, pady=(SP_3, SP_2))
 
         # Left Header: Breadcrumb, Title, Subtitle
-        header_left = tk.Frame(self.header_bar, bg=APP_BG)
+        header_left = tk.Frame(self.header_bar, bg=_TRANSPARENT_BG)
         header_left.pack(side="left", fill="y", anchor="w")
 
         self.lbl_breadcrumb = tk.Label(
             header_left,
             text="DASHBOARD / SECURITY OPERATIONS",
             fg=TEXT_MUTED,
-            bg=APP_BG,
+            bg=_TRANSPARENT_BG,
             font=(FONT_FALLBACK, 10, "bold"),
             anchor="w",
         )
@@ -130,7 +174,7 @@ class DashboardFrame(ttk.Frame):
             header_left,
             text="Threat Intelligence Overview",
             fg=TEXT_PRIMARY,
-            bg=APP_BG,
+            bg=_TRANSPARENT_BG,
             font=(FONT_DISPLAY, 20, "bold"),
             anchor="w",
         )
@@ -140,14 +184,14 @@ class DashboardFrame(ttk.Frame):
             header_left,
             text="Monitor investigative activity, evidence processing, and threat indicators across active cases.",
             fg=TEXT_MUTED,
-            bg=APP_BG,
+            bg=_TRANSPARENT_BG,
             font=(FONT_FALLBACK, 11, "normal"),
             anchor="w",
         )
         self.lbl_subtitle.pack(anchor="w", pady=(1, 0))
 
         # Right Header: Time Range Filter Segment + [+ NEW CASE] Button
-        header_right = tk.Frame(self.header_bar, bg=APP_BG)
+        header_right = tk.Frame(self.header_bar, bg=_TRANSPARENT_BG)
         header_right.pack(side="right", anchor="e", pady=(4, 0))
 
         # Time range filter segmented container
@@ -175,17 +219,17 @@ class DashboardFrame(ttk.Frame):
             text="[+ NEW CASE]",
             command=self._handle_new_case,
             variant="primary",
-            bg=APP_BG,
+            bg=_TRANSPARENT_BG,
         )
         self.btn_new_case.pack(side="left")
 
         # Top Section Divider
-        create_divider(self, color=BORDER).pack(fill="x", padx=SP_4, pady=(SP_2, SP_3))
+        create_divider(host, color=BORDER_SECONDARY).pack(fill="x", padx=SP_4, pady=(SP_2, SP_3))
 
         # ---------------------------------------------------------------------
-        # B) 4 Compact KPI Panels Row (Equal Width, 8px gaps)
+        # B) 4 Compact KPI Glass Cards Row
         # ---------------------------------------------------------------------
-        self.kpi_row = tk.Frame(self, bg=APP_BG)
+        self.kpi_row = tk.Frame(host, bg=_TRANSPARENT_BG)
         self.kpi_row.pack(fill="x", padx=SP_4, pady=(0, SP_3))
 
         for col_idx in range(4):
@@ -198,6 +242,7 @@ class DashboardFrame(ttk.Frame):
             title="ACTIVE INVESTIGATIONS",
             val_color=TEXT_PRIMARY,
             subtext="Cases currently open",
+            accent_tint=TEAL,
         )
 
         # 2. Evidence Artifacts
@@ -207,6 +252,7 @@ class DashboardFrame(ttk.Frame):
             title="EVIDENCE ARTIFACTS",
             val_color=MINT,
             subtext="Total files & logs ingested",
+            accent_tint=CYAN,
         )
 
         # 3. Threat Indicators
@@ -216,6 +262,7 @@ class DashboardFrame(ttk.Frame):
             title="THREAT INDICATORS",
             val_color=MEDIUM,
             subtext="Rule matches derived by AI",
+            accent_tint=TEAL_MID,
         )
 
         # 4. Critical Threats
@@ -225,12 +272,13 @@ class DashboardFrame(ttk.Frame):
             title="CRITICAL THREATS",
             val_color=CRITICAL,
             subtext="High & Critical severity findings",
+            accent_tint="#3A1515",
         )
 
         # ---------------------------------------------------------------------
         # C) Two-Column Main Analytics Section (Grid 60% / 40% split)
         # ---------------------------------------------------------------------
-        self.charts_row = tk.Frame(self, bg=APP_BG)
+        self.charts_row = tk.Frame(host, bg=_TRANSPARENT_BG)
         self.charts_row.pack(fill="x", padx=SP_4, pady=(0, SP_3))
         self.charts_row.grid_rowconfigure(0, weight=1)
         self.charts_row.grid_columnconfigure(0, weight=6)
@@ -245,10 +293,10 @@ class DashboardFrame(ttk.Frame):
         # ---------------------------------------------------------------------
         # D) Secondary Analysis Panel (Bottom Row: Recent Forensic Activity)
         # ---------------------------------------------------------------------
-        self._build_recent_activity_section()
+        self._build_recent_activity_section(host)
 
     # -------------------------------------------------------------------------
-    # KPI Card Builder
+    # KPI Card Builder (Liquid Glass Squircle)
     # -------------------------------------------------------------------------
 
     def _build_kpi_card(
@@ -258,70 +306,75 @@ class DashboardFrame(ttk.Frame):
         title: str,
         val_color: str,
         subtext: str,
+        accent_tint: str = "#14B8A6",
     ) -> Dict[str, tk.Label]:
-        """Construct a standardized SOC KPI panel with title, large value, and subtext."""
-        panel = tk.Frame(
+        """Construct a liquid glass squircle KPI card with title, large value, and subtext."""
+        squircle = create_liquid_squircle(
             parent,
-            bg=PANEL_BG,
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            bd=0,
-            padx=14,
-            pady=10,
+            width=260,
+            height=100,
+            radius=16,
+            alpha=45,
+            tint=accent_tint,
+            border_color=BORDER_SECONDARY,
         )
-        panel.grid(row=0, column=col, sticky="nsew", padx=4)
+        squircle.grid(row=0, column=col, sticky="nsew", padx=4, pady=2)
+
+        inner = squircle.inner_frame
 
         lbl_title = tk.Label(
-            panel,
+            inner,
             text=title,
             fg=TEXT_SECONDARY,
             bg=PANEL_BG,
             font=(FONT_FALLBACK, 9, "bold"),
             anchor="w",
         )
-        lbl_title.pack(anchor="w")
+        lbl_title.pack(anchor="w", padx=14, pady=(8, 0))
 
         lbl_val = tk.Label(
-            panel,
+            inner,
             text="0",
             fg=val_color,
             bg=PANEL_BG,
             font=(FONT_DISPLAY, 24, "bold"),
             anchor="w",
         )
-        lbl_val.pack(anchor="w", pady=(2, 0))
+        lbl_val.pack(anchor="w", padx=14, pady=(2, 0))
 
         lbl_sub = tk.Label(
-            panel,
+            inner,
             text=subtext,
             fg=TEXT_MUTED,
             bg=PANEL_BG,
             font=(FONT_FALLBACK, 8, "normal"),
             anchor="w",
         )
-        lbl_sub.pack(anchor="w")
+        lbl_sub.pack(anchor="w", padx=14, pady=(0, 8))
 
         return {"title": lbl_title, "val": lbl_val, "sub": lbl_sub}
 
     # -------------------------------------------------------------------------
-    # Chart Panels Construction (Matplotlib FigureCanvasTkAgg)
+    # Chart Panels Construction (Liquid Glass + Matplotlib FigureCanvasTkAgg)
     # -------------------------------------------------------------------------
 
     def _build_timeline_chart_panel(self, parent: tk.Widget) -> None:
-        """Construct the 60% Left Analytics panel hosting the Matplotlib Activity Timeline."""
-        panel = tk.Frame(
+        """Construct the 60% Left Analytics panel: liquid glass card hosting the Matplotlib Activity Timeline."""
+        squircle = create_liquid_squircle(
             parent,
-            bg=PANEL_BG,
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            bd=0,
-            padx=12,
-            pady=10,
+            width=540,
+            height=240,
+            radius=16,
+            alpha=40,
+            tint=TEAL,
+            border_color=BORDER_SECONDARY,
         )
-        panel.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        squircle.grid(row=0, column=0, sticky="nsew", padx=(0, 4), pady=2)
 
-        hdr_row = tk.Frame(panel, bg=PANEL_BG)
-        hdr_row.pack(fill="x", pady=(0, 4))
+        inner = squircle.inner_frame
+
+        hdr_row = tk.Frame(inner, bg=PANEL_BG)
+        hdr_row.pack(fill="x", padx=12, pady=(8, 4))
 
         create_section_header(hdr_row, "EVENT FREQUENCY & INTRUSION TIMELINE").pack(side="left")
 
@@ -334,30 +387,32 @@ class DashboardFrame(ttk.Frame):
         )
         self.lbl_timeline_summary.pack(side="right")
 
-        # Matplotlib Figure & Canvas
+        # Matplotlib Figure & Canvas with transparent facecolor
         self.fig_timeline = Figure(figsize=(5.6, 2.2), dpi=100, facecolor=PANEL_BG)
         self.fig_timeline.subplots_adjust(left=0.08, right=0.96, top=0.92, bottom=0.20)
         self.ax_timeline = self.fig_timeline.add_subplot(111)
 
-        self.canvas_timeline = FigureCanvasTkAgg(self.fig_timeline, master=panel)
+        self.canvas_timeline = FigureCanvasTkAgg(self.fig_timeline, master=inner)
         self.canvas_timeline.draw()
-        self.canvas_timeline.get_tk_widget().pack(fill="both", expand=True)
+        self.canvas_timeline.get_tk_widget().pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
     def _build_severity_chart_panel(self, parent: tk.Widget) -> None:
-        """Construct the 40% Right Analytics panel hosting the Matplotlib Severity Breakdown."""
-        panel = tk.Frame(
+        """Construct the 40% Right Analytics panel: liquid glass card hosting the Matplotlib Severity Breakdown."""
+        squircle = create_liquid_squircle(
             parent,
-            bg=PANEL_BG,
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            bd=0,
-            padx=12,
-            pady=10,
+            width=360,
+            height=240,
+            radius=16,
+            alpha=40,
+            tint=TEAL,
+            border_color=BORDER_SECONDARY,
         )
-        panel.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        squircle.grid(row=0, column=1, sticky="nsew", padx=(4, 0), pady=2)
 
-        hdr_row = tk.Frame(panel, bg=PANEL_BG)
-        hdr_row.pack(fill="x", pady=(0, 4))
+        inner = squircle.inner_frame
+
+        hdr_row = tk.Frame(inner, bg=PANEL_BG)
+        hdr_row.pack(fill="x", padx=12, pady=(8, 4))
 
         create_section_header(hdr_row, "DERIVED THREAT SEVERITY BREAKDOWN").pack(side="left")
 
@@ -375,30 +430,33 @@ class DashboardFrame(ttk.Frame):
         self.fig_severity.subplots_adjust(left=0.24, right=0.92, top=0.92, bottom=0.18)
         self.ax_severity = self.fig_severity.add_subplot(111)
 
-        self.canvas_severity = FigureCanvasTkAgg(self.fig_severity, master=panel)
+        self.canvas_severity = FigureCanvasTkAgg(self.fig_severity, master=inner)
         self.canvas_severity.draw()
-        self.canvas_severity.get_tk_widget().pack(fill="both", expand=True)
+        self.canvas_severity.get_tk_widget().pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
     # -------------------------------------------------------------------------
-    # Secondary Analysis Panel: Recent Forensic Activity Table
+    # Secondary Analysis Panel: Recent Forensic Activity (Liquid Glass)
     # -------------------------------------------------------------------------
 
-    def _build_recent_activity_section(self) -> None:
-        """Construct the bottom panel displaying recent cases in a scrollable list."""
-        self.table_panel = tk.Frame(
-            self,
-            bg=PANEL_BG,
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            bd=0,
-            padx=12,
-            pady=10,
+    def _build_recent_activity_section(self, host: tk.Widget) -> None:
+        """Construct the bottom panel displaying recent cases inside a liquid glass card."""
+        squircle = create_liquid_squircle(
+            host,
+            width=800,
+            height=260,
+            radius=16,
+            alpha=40,
+            tint=TEAL,
+            border_color=BORDER_SECONDARY,
         )
-        self.table_panel.pack(fill="both", expand=True, padx=SP_4, pady=(0, SP_3))
+        squircle.pack(fill="both", expand=True, padx=SP_4, pady=(0, SP_3))
+
+        inner = squircle.inner_frame
+        self.table_panel_inner = inner
 
         # Header Row
-        hdr_row = tk.Frame(self.table_panel, bg=PANEL_BG)
-        hdr_row.pack(fill="x", pady=(0, SP_2))
+        hdr_row = tk.Frame(inner, bg=PANEL_BG)
+        hdr_row.pack(fill="x", padx=12, pady=(8, SP_2))
 
         create_section_header(hdr_row, "RECENT FORENSIC ACTIVITY").pack(side="left")
 
@@ -411,11 +469,11 @@ class DashboardFrame(ttk.Frame):
         )
         self.lbl_case_count_badge.pack(side="right")
 
-        create_divider(self.table_panel, color=BORDER).pack(fill="x", pady=(0, SP_2))
+        create_divider(inner, color=BORDER).pack(fill="x", padx=12, pady=(0, SP_2))
 
         # Scrollable container for case cards
-        self.table_container = tk.Frame(self.table_panel, bg=PANEL_BG)
-        self.table_container.pack(fill="both", expand=True)
+        self.table_container = tk.Frame(inner, bg=PANEL_BG)
+        self.table_container.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         self.canvas_scroll = tk.Canvas(
             self.table_container,
