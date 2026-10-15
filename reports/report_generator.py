@@ -22,7 +22,7 @@ import sys
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
@@ -81,7 +81,7 @@ class NumberedCanvas(canvas.Canvas):
 
     def _draw_decorations(self, page_count: int) -> None:
         self.saveState()
-        width, height = letter
+        width, height = self._pagesize if hasattr(self, "_pagesize") else A4
 
         # Running header on pages 2+
         if self._pageNumber > 1:
@@ -225,7 +225,7 @@ def generate_pdf_report(case_id: int, output_path: Optional[str] = None) -> str:
     # 6. Build PDF document elements
     doc = SimpleDocTemplate(
         output_path,
-        pagesize=letter,
+        pagesize=A4,
         leftMargin=36,
         rightMargin=36,
         topMargin=40,
@@ -298,6 +298,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=18,
             leading=22,
             textColor=colors.HexColor("#00E5FF"),
+            wordWrap="CJK",
         ),
         "TitleSub": ParagraphStyle(
             "TitleSub",
@@ -306,6 +307,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=11,
             leading=14,
             textColor=colors.white,
+            wordWrap="CJK",
         ),
         "MetaLabel": ParagraphStyle(
             "MetaLabel",
@@ -314,6 +316,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=8,
             leading=11,
             textColor=colors.HexColor("#94A3B8"),
+            wordWrap="CJK",
         ),
         "MetaVal": ParagraphStyle(
             "MetaVal",
@@ -322,6 +325,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=8,
             leading=11,
             textColor=colors.white,
+            wordWrap="CJK",
         ),
         "SectionHeading": ParagraphStyle(
             "SectionHeading",
@@ -330,6 +334,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=11,
             leading=14,
             textColor=colors.white,
+            wordWrap="CJK",
         ),
         "BodyText": ParagraphStyle(
             "BodyText",
@@ -338,6 +343,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=8.5,
             leading=12,
             textColor=colors.HexColor("#334155"),
+            wordWrap="CJK",
         ),
         "BodyMuted": ParagraphStyle(
             "BodyMuted",
@@ -346,6 +352,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=7.5,
             leading=10.5,
             textColor=colors.HexColor("#64748B"),
+            wordWrap="CJK",
         ),
         "TableHead": ParagraphStyle(
             "TableHead",
@@ -354,6 +361,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=8,
             leading=10,
             textColor=colors.white,
+            wordWrap="CJK",
         ),
         "TableCell": ParagraphStyle(
             "TableCell",
@@ -362,6 +370,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=7.5,
             leading=10,
             textColor=colors.HexColor("#1E293B"),
+            wordWrap="CJK",
         ),
         "TableCellBold": ParagraphStyle(
             "TableCellBold",
@@ -370,6 +379,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=7.5,
             leading=10,
             textColor=colors.HexColor("#0F172A"),
+            wordWrap="CJK",
         ),
         "TableCellMono": ParagraphStyle(
             "TableCellMono",
@@ -378,6 +388,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=6.5,
             leading=8.5,
             textColor=colors.HexColor("#0F172A"),
+            wordWrap="CJK",
         ),
         "FindingTitle": ParagraphStyle(
             "FindingTitle",
@@ -386,6 +397,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=9,
             leading=12,
             textColor=colors.HexColor("#0F172A"),
+            wordWrap="CJK",
         ),
         "FindingDesc": ParagraphStyle(
             "FindingDesc",
@@ -394,6 +406,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=8,
             leading=11,
             textColor=colors.HexColor("#334155"),
+            wordWrap="CJK",
         ),
         "ProofHeader": ParagraphStyle(
             "ProofHeader",
@@ -402,6 +415,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=7,
             leading=9,
             textColor=colors.HexColor("#64748B"),
+            wordWrap="CJK",
         ),
         "ProofBody": ParagraphStyle(
             "ProofBody",
@@ -410,6 +424,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=7,
             leading=9.5,
             textColor=colors.HexColor("#1E293B"),
+            wordWrap="CJK",
         ),
         "RecText": ParagraphStyle(
             "RecText",
@@ -418,6 +433,7 @@ def _get_report_styles() -> Dict[str, ParagraphStyle]:
             fontSize=8,
             leading=11,
             textColor=colors.HexColor("#1E293B"),
+            wordWrap="CJK",
         ),
     }
 
@@ -460,7 +476,7 @@ def _build_header_banner(case: Dict[str, Any], styles: Dict[str, ParagraphStyle]
         ],
     ]
 
-    meta_table = Table(meta_rows, colWidths=[75, 185, 80, 160])
+    meta_table = Table(meta_rows, colWidths=[70, 180, 75, 175])
     meta_table.setStyle(
         TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -477,14 +493,14 @@ def _build_header_banner(case: Dict[str, Any], styles: Dict[str, ParagraphStyle]
         [meta_table],
     ]
 
-    header_table = Table(header_data, colWidths=[540])
+    header_table = Table(header_data, colWidths=[520])
     header_table.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0B0F19")),
             ("TOPPADDING", (0, 0), (-1, -1), 12),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
-            ("LEFTPADDING", (0, 0), (-1, -1), 14),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
             ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#00E5FF")),
         ])
     )
@@ -494,7 +510,7 @@ def _build_header_banner(case: Dict[str, Any], styles: Dict[str, ParagraphStyle]
 
 def _build_section_bar(title: str, styles: Dict[str, ParagraphStyle]) -> Table:
     """Create a standardized dark section header banner."""
-    t = Table([[Paragraph(title, styles["SectionHeading"])]], colWidths=[540])
+    t = Table([[Paragraph(title, styles["SectionHeading"])]], colWidths=[520])
     t.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0F172A")),
@@ -540,7 +556,7 @@ def _build_executive_summary_section(
         ]
     ]
 
-    stat_table = Table(stat_card_data, colWidths=[135, 135, 135, 135])
+    stat_table = Table(stat_card_data, colWidths=[130, 130, 130, 130])
     stat_table.setStyle(
         TableStyle([
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
@@ -612,7 +628,7 @@ def _build_evidence_section(
                 Paragraph(str(ev.get("file_hash", "UNKNOWN")), styles["TableCellMono"]),
             ])
 
-    ev_table = Table(table_data, colWidths=[120, 60, 100, 260], repeatRows=1)
+    ev_table = Table(table_data, colWidths=[115, 65, 95, 245], repeatRows=1)
     ev_table.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E293B")),
@@ -677,10 +693,10 @@ def _build_findings_section(
         header_row = [
             [
                 Paragraph(f"<b>[{code}] {title.upper()}</b>", styles["FindingTitle"]),
-                Paragraph(f"<b>+{severity} PTS</b>", ParagraphStyle("Sev", parent=styles["TableCellBold"], textColor=sev_badge_color, alignment=2)),
+                Paragraph(f"<b>+{severity} PTS</b>", ParagraphStyle("Sev", parent=styles["TableCellBold"], textColor=sev_badge_color, alignment=2, wordWrap="CJK")),
             ]
         ]
-        h_table = Table(header_row, colWidths=[440, 80])
+        h_table = Table(header_row, colWidths=[424, 80])
         h_table.setStyle(
             TableStyle([
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -695,7 +711,7 @@ def _build_findings_section(
             [Paragraph("WHY THIS FIRED (FACT PROOF):", styles["ProofHeader"])],
             [Paragraph(proof_explanation, styles["ProofBody"])],
         ]
-        proof_table = Table(proof_row, colWidths=[520])
+        proof_table = Table(proof_row, colWidths=[504])
         proof_table.setStyle(
             TableStyle([
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F1F5F9")),
@@ -715,15 +731,15 @@ def _build_findings_section(
             [proof_table],
         ]
 
-        card_table = Table(card_content, colWidths=[540])
+        card_table = Table(card_content, colWidths=[520])
         card_table.setStyle(
             TableStyle([
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFFFFF")),
                 ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
                 ("TOPPADDING", (0, 0), (-1, -1), 6),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
             ])
         )
 
@@ -753,7 +769,7 @@ def _build_recommendations_section(
             Paragraph(rec, styles["RecText"]),
         ])
 
-    rec_table = Table(rec_data, colWidths=[36, 504])
+    rec_table = Table(rec_data, colWidths=[36, 484])
     rec_table.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
@@ -821,7 +837,7 @@ def _build_timeline_section(
             Paragraph(desc, styles["TableCell"]),
         ])
 
-    table = Table(t_data, colWidths=[110, 65, 95, 270], repeatRows=1)
+    table = Table(t_data, colWidths=[105, 65, 90, 260], repeatRows=1)
     table.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E293B")),

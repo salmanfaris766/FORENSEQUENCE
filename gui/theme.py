@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from typing import Optional
+from PIL import Image, ImageDraw, ImageTk
 import ttkbootstrap as ttk
 from ttkbootstrap.style import Style
 
@@ -42,10 +43,10 @@ BORDER            = "#1B302D"
 BORDER_SECONDARY  = "#263F3B"
 BORDER_HOVER      = "#35635C"
 
-CRITICAL          = "#FF5B5B"
-HIGH              = "#F2A65A"
-MEDIUM            = "#E5D477"
-LOW               = "#2DE3C8"
+CRITICAL          = "#FF5B5B"  # Red (strictly for CRITICAL)
+HIGH              = "#0E8A80"  # Deep Teal
+MEDIUM            = "#18A999"  # Mid Teal
+LOW               = "#2DE3C8"  # Mint Cyan
 INFORMATIONAL     = "#7B918D"
 CHART_GRID        = "#142724"
 
@@ -265,9 +266,9 @@ def risk_color(score: int) -> str:
     """
     Return the SOC severity color corresponding to a 0-100 forensic risk score.
     0-33   -> LOW (MINT #2DE3C8)
-    34-66  -> MEDIUM (#E5D477)
-    67-84  -> HIGH (#F2A65A)
-    85-100 -> CRITICAL (#FF5B5B)
+    34-66  -> MEDIUM (MID TEAL #18A999)
+    67-84  -> HIGH (DEEP TEAL #0E8A80)
+    85-100 -> CRITICAL (RED #FF5B5B)
     """
     if score <= 33:
         return LOW
@@ -299,8 +300,32 @@ def risk_label(score: int) -> str:
 
 def _hex_to_rgb(hex_color: str) -> tuple:
     """Convert a #RRGGBB hex string to an (r, g, b) integer tuple."""
+    if not hex_color:
+        return (0, 0, 0)
     h = hex_color.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
     return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+
+def _rgb_to_hex(rgb: tuple) -> str:
+    """Convert an (r, g, b) integer tuple to a #RRGGBB hex string."""
+    return f"#{int(rgb[0]):02x}{int(rgb[1]):02x}{int(rgb[2]):02x}"
+
+
+def _hex_lerp(c1: str, c2: str, t: float) -> str:
+    """Linearly interpolate between two hex color strings."""
+    if not c1:
+        return c2 or ""
+    if not c2:
+        return c1 or ""
+    r1, g1, b1 = _hex_to_rgb(c1)
+    r2, g2, b2 = _hex_to_rgb(c2)
+    t = max(0.0, min(1.0, t))
+    r = int(r1 + (r2 - r1) * t)
+    g = int(g1 + (g2 - g1) * t)
+    b = int(b1 + (b2 - b1) * t)
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 def _draw_rounded_rect(
@@ -366,6 +391,150 @@ def _draw_glow_border(
 # =============================================================================
 # SOC WORKSTATION UI PRIMITIVE FACTORIES
 # =============================================================================
+
+def create_liquid_squircle(
+    parent,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    radius: int = 24,
+    alpha: int = 40,
+    tint: str = "#14B8A6",
+    border_color: Optional[str] = None,
+    border_width: int = 1,
+    **kwargs,
+) -> tk.Canvas:
+    """
+    Create a PIL-based 'Liquid Squircle' translucent glass card.
+    Uses Pillow to render anti-aliased translucent rounded rectangles with a subtle teal tint,
+    placing the image on a Canvas and offering smooth 150ms alpha hover transitions.
+    Includes an .inner_frame container for child widgets.
+    """
+    if "fill_color" in kwargs and kwargs["fill_color"]:
+        tint = kwargs["fill_color"]
+    if "border_color" in kwargs and kwargs["border_color"]:
+        border_color = kwargs["border_color"]
+    if border_color is None:
+        border_color = "#22D3C5"
+
+    init_w = width if width is not None and width > 0 else 400
+    init_h = height if height is not None and height > 0 else 200
+
+    canvas_bg = _get_parent_bg(parent)
+    canvas = tk.Canvas(
+        parent,
+        width=init_w,
+        height=init_h,
+        bg=canvas_bg,
+        highlightthickness=0,
+        bd=0,
+    )
+
+    pad = 4
+    inner = ttk.Frame(canvas, style="Card.TFrame")
+    inner._custom_bg = PANEL_BG
+    canvas.inner_frame = inner
+
+    win_id = canvas.create_window(
+        init_w // 2, init_h // 2,
+        window=inner,
+        width=max(1, init_w - pad * 2),
+        height=max(1, init_h - pad * 2),
+    )
+
+    canvas._photo_frames = []
+    canvas._current_step = 0
+    canvas._anim_id = None
+    canvas._img_item = None
+    last_dims = [init_w, init_h]
+
+    def _render_frames(w: int, h: int):
+        if w <= pad * 2 or h <= pad * 2:
+            return
+        base_a = max(5, min(250, alpha))
+        hover_a = min(255, int(base_a * 1.6) + 15)
+        alpha_steps = [int(base_a + (hover_a - base_a) * (i / 4.0)) for i in range(5)]
+
+        frames = []
+        scale = 2
+        sw, sh, sr = w * scale, h * scale, radius * scale
+        tr, tg, tb = _hex_to_rgb(tint)
+        br, bg_, bb = _hex_to_rgb(border_color)
+
+        for a in alpha_steps:
+            img = Image.new("RGBA", (sw, sh), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            draw.rounded_rectangle(
+                [1 * scale, 1 * scale, sw - 1 * scale, sh - 1 * scale],
+                radius=sr,
+                fill=(tr, tg, tb, a),
+                outline=None,
+            )
+            outline_a = min(255, int(a * 1.3) + 30)
+            draw.rounded_rectangle(
+                [1 * scale, 1 * scale, sw - 1 * scale, sh - 1 * scale],
+                radius=sr,
+                fill=None,
+                outline=(br, bg_, bb, outline_a),
+                width=max(1, border_width * scale),
+            )
+            res = img.resize((w, h), Image.Resampling.LANCZOS)
+            frames.append(ImageTk.PhotoImage(res))
+
+        canvas._photo_frames = frames
+        if canvas._img_item is None:
+            canvas._img_item = canvas.create_image(0, 0, image=frames[canvas._current_step], anchor="nw")
+            canvas.tag_lower(canvas._img_item)
+        else:
+            canvas.itemconfig(canvas._img_item, image=frames[canvas._current_step])
+
+        canvas.coords(win_id, w // 2, h // 2)
+        canvas.itemconfigure(
+            win_id,
+            width=max(1, w - pad * 2),
+            height=max(1, h - pad * 2),
+        )
+
+    _render_frames(init_w, init_h)
+
+    def _step_anim(target_step: int):
+        if not canvas.winfo_exists():
+            return
+        if canvas._current_step == target_step:
+            canvas._anim_id = None
+            return
+        if canvas._current_step < target_step:
+            canvas._current_step += 1
+        else:
+            canvas._current_step -= 1
+        if canvas._photo_frames and 0 <= canvas._current_step < len(canvas._photo_frames):
+            canvas.itemconfig(canvas._img_item, image=canvas._photo_frames[canvas._current_step])
+        canvas._anim_id = canvas.after(30, lambda: _step_anim(target_step))
+
+    def on_enter(_):
+        if canvas._anim_id is not None:
+            canvas.after_cancel(canvas._anim_id)
+            canvas._anim_id = None
+        _step_anim(4)
+
+    def on_leave(_):
+        if canvas._anim_id is not None:
+            canvas.after_cancel(canvas._anim_id)
+            canvas._anim_id = None
+        _step_anim(0)
+
+    canvas.bind("<Enter>", on_enter)
+    canvas.bind("<Leave>", on_leave)
+
+    def _on_canvas_configure(event):
+        if event.widget == canvas:
+            if event.width != last_dims[0] or event.height != last_dims[1]:
+                last_dims[0] = event.width
+                last_dims[1] = event.height
+                _render_frames(event.width, event.height)
+
+    canvas.bind("<Configure>", _on_canvas_configure)
+    return canvas
+
 
 def create_soc_panel(
     parent,
@@ -468,7 +637,8 @@ def create_soc_button(
     bg: Optional[str] = None,
 ) -> tk.Canvas:
     """
-    Create a Canvas-based SOC workstation button.
+    Create a Canvas-based SOC workstation button with rounded squircle styling
+    and smooth 150ms color tweens on hover.
 
     Variants:
       primary   - MINT (#2DE3C8) fill, APP_BG text
@@ -476,9 +646,9 @@ def create_soc_button(
       danger    - PANEL_BG fill, CRITICAL (#FF5B5B) border + text
       ghost     - Transparent fill, TEXT_MUTED text, no border
     """
-    pad_x = SP_4
-    pad_y = SP_2
-    radius = RADIUS_SM
+    pad_x = SP_4 + 2
+    pad_y = SP_2 + 2
+    radius = RADIUS_MD + 2
     font_spec = (FONT_FALLBACK, FS_BASE, "bold")
 
     tmp = tk.Label(parent, text=text, font=font_spec)
@@ -494,7 +664,7 @@ def create_soc_button(
         "primary":   {"fill": MINT,           "border": MINT,             "fg": APP_BG,         "hover_fill": CYAN_NEON,    "hover_border": CYAN_NEON,    "hover_fg": APP_BG},
         "secondary": {"fill": PANEL_ELEVATED, "border": BORDER_SECONDARY, "fg": TEXT_PRIMARY,   "hover_fill": PANEL_HOVER,  "hover_border": BORDER_HOVER, "hover_fg": TEXT_PRIMARY},
         "danger":    {"fill": PANEL_BG,       "border": CRITICAL,         "fg": CRITICAL,       "hover_fill": PANEL_HOVER,  "hover_border": CRITICAL,     "hover_fg": CRITICAL},
-        "ghost":     {"fill": "",             "border": "",               "fg": TEXT_MUTED,     "hover_fill": PANEL_HOVER,  "hover_border": "",           "hover_fg": TEXT_PRIMARY},
+        "ghost":     {"fill": "",             "border": "",               "fg": TEXT_MUTED,     "hover_fill": PANEL_HOVER,  "hover_border": BORDER,       "hover_fg": TEXT_PRIMARY},
     }
     s = variant_styles.get(variant, variant_styles["secondary"])
 
@@ -509,32 +679,66 @@ def create_soc_button(
         cursor="hand2",
     )
 
-    def _draw(fill, border, fg):
+    def _draw(fill_col, border_col, text_col):
         canvas.delete("all")
-        if fill or border:
+        if fill_col or border_col:
             _draw_rounded_rect(
                 canvas,
                 1, 1, btn_w - 1, btn_h - 1,
                 radius,
-                fill=fill if fill else "",
-                outline=border if border else "",
-                width=1 if border else 0,
+                fill=fill_col if fill_col else "",
+                outline=border_col if border_col else "",
+                width=1 if border_col else 0,
             )
         canvas.create_text(
             btn_w // 2, btn_h // 2,
             text=text,
-            fill=fg,
+            fill=text_col,
             font=font_spec,
             anchor="center",
         )
 
     _draw(s["fill"], s["border"], s["fg"])
 
+    canvas._t = 0.0
+    canvas._tween_id = None
+
+    def _tween(target: float):
+        if not canvas.winfo_exists():
+            return
+        step_delta = 0.2
+        if abs(canvas._t - target) <= step_delta:
+            canvas._t = target
+            cur_fill = _hex_lerp(s["fill"], s["hover_fill"], canvas._t) if (s["fill"] or s["hover_fill"]) else ""
+            cur_border = _hex_lerp(s["border"], s["hover_border"], canvas._t) if (s["border"] or s["hover_border"]) else ""
+            cur_fg = _hex_lerp(s["fg"], s["hover_fg"], canvas._t)
+            _draw(cur_fill, cur_border, cur_fg)
+            canvas._tween_id = None
+            return
+
+        if canvas._t < target:
+            canvas._t = min(target, canvas._t + step_delta)
+        else:
+            canvas._t = max(target, canvas._t - step_delta)
+
+        cur_fill = _hex_lerp(s["fill"], s["hover_fill"], canvas._t) if (s["fill"] or s["hover_fill"]) else ""
+        cur_border = _hex_lerp(s["border"], s["hover_border"], canvas._t) if (s["border"] or s["hover_border"]) else ""
+        cur_fg = _hex_lerp(s["fg"], s["hover_fg"], canvas._t)
+        _draw(cur_fill, cur_border, cur_fg)
+
+        canvas._tween_id = canvas.after(30, lambda: _tween(target))
+
     def on_enter(_):
-        _draw(s["hover_fill"], s["hover_border"], s["hover_fg"])
+        if canvas._tween_id is not None:
+            canvas.after_cancel(canvas._tween_id)
+            canvas._tween_id = None
+        _tween(1.0)
 
     def on_leave(_):
-        _draw(s["fill"], s["border"], s["fg"])
+        if canvas._tween_id is not None:
+            canvas.after_cancel(canvas._tween_id)
+            canvas._tween_id = None
+        _tween(0.0)
 
     def on_click(_):
         if command:

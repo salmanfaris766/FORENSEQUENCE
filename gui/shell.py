@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import datetime
+import math
 import tkinter as tk
 from typing import Dict, Optional, Callable
 import ttkbootstrap as ttk
@@ -47,6 +48,8 @@ from gui.theme import (
     create_soc_badge,
     create_soc_entry,
     create_divider,
+    create_liquid_squircle,
+    create_soc_button,
 )
 
 from gui.dashboard_frame import DashboardFrame
@@ -87,6 +90,79 @@ ROUTE_CATEGORIES: Dict[str, str] = {
 
 
 # =============================================================================
+# ANIMATED WAVE BACKGROUND
+# =============================================================================
+
+class AnimatedWaveBackground(tk.Canvas):
+    """
+    Animated flowing background rendering overlapping sine wave polygons in dark teal
+    (#04100F, #061514, #0A2422) over a pure black (#000000) canvas.
+    Animates smoothly via after(30, self._animate) without CPU overhead.
+    """
+
+    def __init__(self, parent: tk.Misc, **kwargs):
+        super().__init__(
+            parent,
+            bg="#000000",
+            highlightthickness=0,
+            bd=0,
+            **kwargs,
+        )
+        self.time_offset = 0.0
+        self._anim_id: Optional[str] = None
+        self._poly_ids = []
+
+        # Wave layer specs: (fill_color, base_y_ratio, amp_ratio, freq, speed, phase)
+        self._wave_specs = [
+            ("#04100F", 0.60, 0.12, 0.003, 0.015, 0.0),
+            ("#061514", 0.72, 0.10, 0.004, 0.022, 1.8),
+            ("#0A2422", 0.84, 0.08, 0.005, 0.028, 3.5),
+        ]
+
+        self.bind("<Destroy>", self._on_destroy)
+        self._animate()
+
+    def _animate(self) -> None:
+        if not self.winfo_exists():
+            return
+
+        w = self.winfo_width()
+        h = self.winfo_height()
+
+        if w > 10 and h > 10:
+            self.time_offset += 1.0
+
+            step_px = max(20, w // 40)
+            x_pts = list(range(0, w + step_px, step_px))
+            if x_pts[-1] < w:
+                x_pts.append(w)
+
+            for i, (color, base_r, amp_r, freq, speed, phase) in enumerate(self._wave_specs):
+                base_y = h * base_r
+                amp = h * amp_r
+                t = self.time_offset * speed + phase
+
+                coords = [0, h]
+                for x in x_pts:
+                    y = base_y + amp * math.sin(x * freq + t)
+                    coords.extend([x, y])
+                coords.extend([w, h])
+
+                if i >= len(self._poly_ids):
+                    pid = self.create_polygon(coords, fill=color, outline="", smooth=True)
+                    self._poly_ids.append(pid)
+                else:
+                    self.coords(self._poly_ids[i], *coords)
+
+        self._anim_id = self.after(30, self._animate)
+
+    def _on_destroy(self, event=None) -> None:
+        if self._anim_id is not None:
+            self.after_cancel(self._anim_id)
+            self._anim_id = None
+
+
+# =============================================================================
 # SIDEBAR NAVIGATION ITEM
 # =============================================================================
 
@@ -104,8 +180,8 @@ class SOCNavItem(tk.Canvas):
         text: str,
         route_name: str,
         on_click_callback: Callable[[str], None],
-        width: int = 225,
-        height: int = 36,
+        width: int = 280,
+        height: int = 38,
     ):
         super().__init__(
             parent,
@@ -179,9 +255,9 @@ class SOCNavItem(tk.Canvas):
             fg_color = TEXT_SECONDARY
             font_spec = (FONT_FALLBACK, FS_BASE, "normal")
 
-        # 12px horizontal padding
+        # 20px horizontal padding for 280px sidebar
         self.create_text(
-            16,
+            20,
             self.h // 2,
             text=self.item_text,
             anchor="w",
@@ -201,9 +277,11 @@ NavItem = SOCNavItem
 class AppShell(ttk.Frame):
     """
     SOC Workstation Application Shell featuring:
-    - 225px Fixed Left Sidebar with grouped category navigation
-    - 42px Top Toolbar with Breadcrumb, Search Input, Case Badge, and Live Status Dot
-    - Dynamic Central Content Area supporting instantaneous screen routing
+    - Flowing animated wave background placed across the entire root window
+    - 280px Fixed Left Sidebar with grouped category navigation
+    - Transparent Top Toolbar with Breadcrumb, Floating Squircle Pill Search, and Live Status
+    - Dynamic Central Content Area with border removal letting background waves show through
+    - Modal Slide-In Navigation for drill-down case investigation
     - 26px Bottom Status Bar with system telemetry and real-time UTC clock
     """
 
@@ -228,6 +306,7 @@ class AppShell(ttk.Frame):
         self._current_screen_widget: Optional[ttk.Frame] = None
         self._is_live_active = False
         self.selected_case_id: Optional[int] = None
+        self._active_slide_panel: Optional[tk.Widget] = None
 
         self._build_layout()
         self._init_clock()
@@ -241,26 +320,25 @@ class AppShell(ttk.Frame):
     # -------------------------------------------------------------------------
 
     def _build_layout(self) -> None:
-        """Assemble SOC workstation desktop chrome: sidebar, top toolbar, content, status bar."""
+        """Assemble liquid cool workstation desktop chrome: animated background, 280px sidebar, glass search, content."""
         self.configure(style="TFrame")
+
+        # Animated flowing background at the very back of AppShell
+        self.wave_bg = AnimatedWaveBackground(self)
+        self.wave_bg.place(x=0, y=0, relwidth=1.0, relheight=1.0)
+        tk.Misc.lower(self.wave_bg)
 
         # Outer horizontal split container: Sidebar (Left) + Workstation Main (Right)
         self.outer_split = ttk.Frame(self, style="TFrame")
         self.outer_split.pack(fill="both", expand=True)
 
         # ---------------------------------------------------------------------
-        # 1. Left Sidebar (225px Fixed Width, #050C0B, Right Border 1px #1B302D)
+        # 1. Left Sidebar (280px Fixed Width, Liquid Glass styling)
         # ---------------------------------------------------------------------
-        self.sidebar_container = ttk.Frame(self.outer_split, width=225, style="Panel.TFrame")
+        self.sidebar_container = ttk.Frame(self.outer_split, width=280, style="Panel.TFrame")
         self.sidebar_container._custom_bg = SIDEBAR_BG
         self.sidebar_container.pack(side="left", fill="y")
         self.sidebar_container.pack_propagate(False)
-
-        # Right border line on sidebar
-        v_divider = tk.Canvas(
-            self.outer_split, width=1, bg=BORDER, highlightthickness=0, bd=0
-        )
-        v_divider.pack(side="left", fill="y")
 
         # Top Branding Header in Sidebar
         brand_frame = tk.Frame(self.sidebar_container, bg=SIDEBAR_BG, padx=SP_4, pady=SP_4)
@@ -286,7 +364,7 @@ class AppShell(ttk.Frame):
 
         create_divider(self.sidebar_container, color=BORDER).pack(fill="x", padx=SP_3, pady=(SP_2, SP_3))
 
-        # Grouped Navigation Sections
+        # Grouped Navigation Sections (About screen removed)
         nav_groups = [
             ("WORKSPACE", [
                 ("Dashboard", "Dashboard"),
@@ -300,12 +378,10 @@ class AppShell(ttk.Frame):
             ]),
             ("SYSTEM", [
                 ("Settings", "Settings"),
-                ("About", "About"),
             ]),
         ]
 
         for group_label, items in nav_groups:
-            # Category Header Label
             cat_label = tk.Label(
                 self.sidebar_container,
                 text=group_label,
@@ -313,7 +389,7 @@ class AppShell(ttk.Frame):
                 bg=SIDEBAR_BG,
                 font=(FONT_FALLBACK, 10, "bold"),
                 anchor="w",
-                padx=16,
+                padx=20,
             )
             cat_label.pack(fill="x", pady=(SP_2, 2))
 
@@ -323,8 +399,8 @@ class AppShell(ttk.Frame):
                     text=display_name,
                     route_name=route_key,
                     on_click_callback=self.show_screen,
-                    width=225,
-                    height=36,
+                    width=280,
+                    height=38,
                 )
                 nav_btn.pack(fill="x", pady=1)
                 self._nav_items[route_key] = nav_btn
@@ -340,60 +416,88 @@ class AppShell(ttk.Frame):
         self.workstation_area = ttk.Frame(self.outer_split, style="TFrame")
         self.workstation_area.pack(side="left", fill="both", expand=True)
 
-        # --- Top Toolbar (Height ~42px, #061211, Bottom Border 1px #1B302D) ---
-        self.top_toolbar = tk.Frame(self.workstation_area, height=42, bg=BG_SECONDARY)
+        # --- Top Toolbar (Transparent feel, floating glass squircle search bar) ---
+        self.top_toolbar = tk.Frame(self.workstation_area, height=48, bg=APP_BG)
         self.top_toolbar.pack(fill="x", side="top")
         self.top_toolbar.pack_propagate(False)
 
         # Left Toolbar: Breadcrumb Trail
-        self.breadcrumb_frame = tk.Frame(self.top_toolbar, bg=BG_SECONDARY)
+        self.breadcrumb_frame = tk.Frame(self.top_toolbar, bg=APP_BG)
         self.breadcrumb_frame.pack(side="left", padx=SP_4, fill="y")
 
         self.lbl_breadcrumb_prefix = tk.Label(
             self.breadcrumb_frame,
             text="WORKSTATION /",
             fg=TEXT_MUTED,
-            bg=BG_SECONDARY,
+            bg=APP_BG,
             font=(FONT_FALLBACK, FS_SM, "bold"),
         )
-        self.lbl_breadcrumb_prefix.pack(side="left", pady=10)
+        self.lbl_breadcrumb_prefix.pack(side="left", pady=13)
 
         self.lbl_breadcrumb_active = tk.Label(
             self.breadcrumb_frame,
             text="DASHBOARD",
             fg=TEXT_PRIMARY,
-            bg=BG_SECONDARY,
+            bg=APP_BG,
             font=(FONT_FALLBACK, FS_SM, "bold"),
         )
-        self.lbl_breadcrumb_active.pack(side="left", padx=(4, 0), pady=10)
+        self.lbl_breadcrumb_active.pack(side="left", padx=(4, 0), pady=13)
 
-        # Center Toolbar: Compact Search Input Box
-        self.search_container = tk.Frame(self.top_toolbar, bg=BG_SECONDARY)
-        self.search_container.pack(side="left", expand=True, padx=SP_4)
-
-        self.entry_search = create_soc_entry(
-            self.search_container,
-            placeholder="Search cases, hashes, indicators...",
-            width=36,
+        # Center Toolbar: Floating liquid squircle pill search bar (radius=18)
+        self.search_pill = create_liquid_squircle(
+            self.top_toolbar,
+            width=360,
+            height=36,
+            radius=18,
+            alpha=35,
+            tint=TEAL,
+            border_color=BORDER_SECONDARY,
         )
-        self.entry_search.pack(pady=7, ipady=2)
+        self.search_pill.pack(side="left", expand=True, pady=6)
+
+        search_placeholder = "Search cases, hashes, indicators..."
+        self.entry_search = tk.Entry(
+            self.search_pill.inner_frame,
+            bg=PANEL_BG,
+            fg=TEXT_MUTED,
+            insertbackground=CYAN,
+            bd=0,
+            highlightthickness=0,
+            font=(FONT_FALLBACK, FS_BASE),
+        )
+        self.entry_search.pack(fill="both", expand=True, padx=12, pady=4)
+        self.entry_search.insert(0, search_placeholder)
+
+        def _on_search_focus_in(event):
+            if self.entry_search.get() == search_placeholder:
+                self.entry_search.delete(0, tk.END)
+                self.entry_search.config(fg=TEXT_PRIMARY)
+
+        def _on_search_focus_out(event):
+            if not self.entry_search.get().strip():
+                self.entry_search.delete(0, tk.END)
+                self.entry_search.insert(0, search_placeholder)
+                self.entry_search.config(fg=TEXT_MUTED)
+
+        self.entry_search.bind("<FocusIn>", _on_search_focus_in)
+        self.entry_search.bind("<FocusOut>", _on_search_focus_out)
         self.entry_search.bind("<Return>", self._on_global_search)
 
         # Right Toolbar: Case Context Badge + Live Status Indicator Dot
-        self.toolbar_right = tk.Frame(self.top_toolbar, bg=BG_SECONDARY)
+        self.toolbar_right = tk.Frame(self.top_toolbar, bg=APP_BG)
         self.toolbar_right.pack(side="right", padx=SP_4, fill="y")
 
-        self.case_badge_container = tk.Frame(self.toolbar_right, bg=BG_SECONDARY)
+        self.case_badge_container = tk.Frame(self.toolbar_right, bg=APP_BG)
         self.case_badge_container.pack(side="left", padx=(0, SP_3), pady=8)
-        self.case_badge = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEAL_MID, bg=BG_SECONDARY)
+        self.case_badge = create_soc_badge(self.case_badge_container, "NO ACTIVE CASE", color=TEAL_MID, bg=APP_BG)
         self.case_badge.pack(side="left")
 
         # Live Status Indicator Dot & Label
-        self.status_box = tk.Frame(self.toolbar_right, bg=BG_SECONDARY)
-        self.status_box.pack(side="left", pady=10)
+        self.status_box = tk.Frame(self.toolbar_right, bg=APP_BG)
+        self.status_box.pack(side="left", pady=13)
 
         self.dot_canvas = tk.Canvas(
-            self.status_box, width=12, height=12, bg=BG_SECONDARY, highlightthickness=0, bd=0
+            self.status_box, width=12, height=12, bg=APP_BG, highlightthickness=0, bd=0
         )
         self.dot_canvas.pack(side="left", padx=(0, 6))
         self.dot_item = self.dot_canvas.create_oval(2, 2, 10, 10, fill=CYAN, outline="")
@@ -402,17 +506,12 @@ class AppShell(ttk.Frame):
             self.status_box,
             text="STATUS: IDLE",
             fg=TEXT_SECONDARY,
-            bg=BG_SECONDARY,
+            bg=APP_BG,
             font=(FONT_MONO_FALLBACK, FS_XS, "bold"),
         )
         self.status_label.pack(side="left")
 
-        # Toolbar Bottom Divider
-        create_divider(self.workstation_area, color=BORDER).pack(fill="x", side="top")
-
-        # --- Bottom Status Bar (Height 26px, #050C0B, Top Border 1px #1B302D) ---
-        create_divider(self.workstation_area, color=BORDER).pack(fill="x", side="bottom")
-
+        # --- Bottom Status Bar (Height 26px, #050C0B, no harsh border) ---
         self.status_bar = tk.Frame(self.workstation_area, height=26, bg=SIDEBAR_BG)
         self.status_bar.pack(fill="x", side="bottom")
         self.status_bar.pack_propagate(False)
@@ -447,9 +546,9 @@ class AppShell(ttk.Frame):
         )
         self.clock_label.pack(side="right", padx=SP_4)
 
-        # --- Central Screen Container Area ---
+        # --- Central Screen Container Area (Clean borders letting background wave show through) ---
         self.content_container = ttk.Frame(self.workstation_area, style="TFrame")
-        self.content_container.pack(fill="both", expand=True)
+        self.content_container.pack(fill="both", expand=True, padx=4, pady=4)
 
     # -------------------------------------------------------------------------
     # Screen Routing & Lifecycle
@@ -464,6 +563,10 @@ class AppShell(ttk.Frame):
         resolved_route = ROUTE_ALIASES.get(route_name, route_name)
         if resolved_route not in self._routes:
             return
+
+        # Dismiss any active slide-in panel when navigating routes
+        if getattr(self, "_active_slide_panel", None):
+            self.close_slide_in_panel()
 
         # Avoid redundant re-instantiation
         if self._current_screen_name == resolved_route and self._current_screen_widget:
@@ -518,6 +621,124 @@ class AppShell(ttk.Frame):
         self._current_screen_name = resolved_route
 
     # -------------------------------------------------------------------------
+    # Slide-In Navigation (Modal Drill-Down Mechanism)
+    # -------------------------------------------------------------------------
+
+    def show_slide_in_panel(self, frame_class: type, **kwargs) -> tk.Widget:
+        """
+        Instantiate a modal slide-in panel and animate it in from the right edge.
+        relx animates from 1.0 down to 0.05 over 250ms with easing, leaving
+        the left sidebar visible for layered drill-down navigation.
+        Features a top chrome bar with [< BACK] dismiss button.
+        """
+        if getattr(self, "_active_slide_panel", None):
+            try:
+                self._active_slide_panel.destroy()
+            except Exception:
+                pass
+            self._active_slide_panel = None
+
+        panel_container = tk.Frame(
+            self,
+            bg=PANEL_BG,
+            highlightthickness=1,
+            highlightbackground=TEAL_DARK,
+            bd=0,
+        )
+        self._active_slide_panel = panel_container
+        panel_container.place(relx=1.0, rely=0.0, relwidth=0.95, relheight=1.0)
+        panel_container.lift()
+
+        # Header bar with [< BACK] button
+        header_bar = tk.Frame(panel_container, bg=BG_SECONDARY, height=44)
+        header_bar.pack(fill="x", side="top")
+        header_bar.pack_propagate(False)
+
+        back_btn = create_soc_button(
+            header_bar,
+            text="[< BACK]",
+            variant="secondary",
+            command=self.close_slide_in_panel,
+        )
+        back_btn.pack(side="left", padx=SP_3, pady=6)
+
+        title_lbl = tk.Label(
+            header_bar,
+            text="DRILL-DOWN DETAIL VIEW",
+            fg=CYAN,
+            bg=BG_SECONDARY,
+            font=(FONT_FALLBACK, FS_BASE, "bold"),
+        )
+        title_lbl.pack(side="left", padx=SP_2)
+
+        create_divider(panel_container, color=BORDER).pack(fill="x", side="top")
+
+        # Inner body for the frame class
+        body = ttk.Frame(panel_container, style="TFrame")
+        body.pack(fill="both", expand=True)
+
+        try:
+            instance = frame_class(body, shell=self, on_navigate=self.show_screen, **kwargs)
+        except TypeError:
+            instance = frame_class(body, **kwargs)
+        instance.pack(fill="both", expand=True)
+        panel_container._child_instance = instance
+
+        # Animate relx from 1.0 to 0.05 over 250ms
+        start_time = [None]
+        duration_ms = 250.0
+
+        def _step_in():
+            if not panel_container.winfo_exists():
+                return
+            now = datetime.datetime.now().timestamp() * 1000.0
+            if start_time[0] is None:
+                start_time[0] = now
+            elapsed = now - start_time[0]
+            progress = min(1.0, elapsed / duration_ms)
+            eased = 1.0 - (1.0 - progress) ** 3
+            cur_relx = 1.0 - (0.95 * eased)
+            panel_container.place_configure(relx=cur_relx)
+            if progress < 1.0:
+                self.after(20, _step_in)
+            else:
+                panel_container.place_configure(relx=0.05)
+
+        _step_in()
+        return panel_container
+
+    def close_slide_in_panel(self) -> None:
+        """Animate the active slide-in panel off-screen to the right and destroy it."""
+        panel = getattr(self, "_active_slide_panel", None)
+        if not panel or not panel.winfo_exists():
+            self._active_slide_panel = None
+            return
+
+        start_time = [None]
+        duration_ms = 200.0
+        start_relx = 0.05
+
+        def _step_out():
+            if not panel.winfo_exists():
+                self._active_slide_panel = None
+                return
+            now = datetime.datetime.now().timestamp() * 1000.0
+            if start_time[0] is None:
+                start_time[0] = now
+            elapsed = now - start_time[0]
+            progress = min(1.0, elapsed / duration_ms)
+            eased = progress ** 2
+            cur_relx = start_relx + (1.0 - start_relx) * eased
+            panel.place_configure(relx=cur_relx)
+            if progress < 1.0:
+                self.after(20, _step_out)
+            else:
+                panel.destroy()
+                self._active_slide_panel = None
+
+        _step_out()
+
+    # -------------------------------------------------------------------------
     # Case Context & Navigation Callbacks
     # -------------------------------------------------------------------------
 
@@ -534,7 +755,7 @@ class AppShell(ttk.Frame):
         self.show_screen(target)
 
     def _handle_dashboard_select_case(self, case_id: int) -> None:
-        """Handle case selection from Dashboard, setting context and opening Evidence Explorer."""
+        """Handle case selection from Dashboard, setting context and opening Evidence Explorer via slide-in."""
         self.selected_case_id = case_id
         case = get_case_by_id(case_id)
         if case:
@@ -544,14 +765,7 @@ class AppShell(ttk.Frame):
             self.set_case_context(f"CASE #{case_id}")
             self._update_toolbar_case_badge(f"CASE #{case_id}")
 
-        if (
-            self._current_screen_name == "Evidence Explorer"
-            and self._current_screen_widget
-            and hasattr(self._current_screen_widget, "set_case")
-        ):
-            self._current_screen_widget.set_case(case_id)
-        else:
-            self.show_screen("Evidence Explorer")
+        self.show_slide_in_panel(CaseDetailFrame, case_id=case_id)
 
     def _update_toolbar_case_badge(self, case_text: str) -> None:
         """Refresh case pill in top toolbar."""
@@ -561,14 +775,14 @@ class AppShell(ttk.Frame):
             self.case_badge_container,
             f"CASE: {case_text}" if not case_text.startswith("CASE") else case_text,
             color=TEAL_MID,
-            bg=BG_SECONDARY,
+            bg=APP_BG,
         )
         self.case_badge.pack(side="left")
 
     def _on_global_search(self, event=None) -> None:
         """Handle global search input submission."""
         query = self.entry_search.get().strip()
-        if query:
+        if query and query != "Search cases, hashes, indicators...":
             self.flash_alert(f"SEARCHING: '{query}'")
 
     # -------------------------------------------------------------------------
@@ -659,3 +873,4 @@ class AppShell(ttk.Frame):
         """Exit fullscreen display mode."""
         top = self.winfo_toplevel()
         top.attributes("-fullscreen", False)
+
