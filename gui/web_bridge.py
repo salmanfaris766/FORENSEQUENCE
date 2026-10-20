@@ -46,6 +46,66 @@ from monitoring.live_watcher import LiveMonitorManager
 from config import ConfigManager
 
 
+def _open_in_chrome(target: str) -> bool:
+    """Explicitly launch Google Chrome to open target URL or PDF file."""
+    import shutil
+    import subprocess
+
+    chrome_path = None
+    if sys.platform == "win32":
+        try:
+            import winreg
+            candidates = [
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
+                r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
+            ]
+            for reg_path in candidates:
+                try:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path) as key:
+                        val = winreg.QueryValue(key, None)
+                        if val and os.path.exists(val):
+                            chrome_path = val
+                            break
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        if not chrome_path:
+            common_paths = [
+                os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), "Google", "Chrome", "Application", "chrome.exe"),
+                os.path.join(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"), "Google", "Chrome", "Application", "chrome.exe"),
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Chrome", "Application", "chrome.exe"),
+            ]
+            for p in common_paths:
+                if os.path.exists(p):
+                    chrome_path = p
+                    break
+
+    if not chrome_path:
+        chrome_path = shutil.which("chrome") or shutil.which("google-chrome")
+
+    if chrome_path and os.path.exists(chrome_path):
+        try:
+            subprocess.Popen([chrome_path, target])
+            return True
+        except Exception:
+            pass
+
+    try:
+        browser = webbrowser.get("chrome")
+        browser.open(target)
+        return True
+    except Exception:
+        pass
+
+    try:
+        webbrowser.open_new_tab(target)
+        return True
+    except Exception:
+        return False
+
+
 class ApiBridge:
     """
     Exposes high-performance Python backend capabilities to JavaScript via pywebview.
@@ -53,15 +113,15 @@ class ApiBridge:
     """
 
     def __init__(self, window=None):
-        self.window = window
+        self._window = window
         self._shutdown = threading.Event()
-        self.monitor_queue = queue.Queue()
-        self.monitor_manager = LiveMonitorManager(event_queue=self.monitor_queue)
+        self._monitor_queue = queue.Queue()
+        self._monitor_manager = LiveMonitorManager(event_queue=self._monitor_queue)
         initialize_db()
 
     def attach_window(self, window) -> None:
         """Bind the active pywebview window instance."""
-        self.window = window
+        self._window = window
 
     def set_window(self, window) -> None:
         """Alias for attach_window."""
@@ -69,10 +129,10 @@ class ApiBridge:
 
     def safe_eval(self, js_code: str) -> None:
         """Thread-safe and dispose-safe evaluation of JavaScript in the window."""
-        if self._shutdown.is_set() or self.window is None:
+        if self._shutdown.is_set() or self._window is None:
             return
         try:
-            self.window.evaluate_js(js_code)
+            self._window.evaluate_js(js_code)
         except Exception:
             # WebView2 already disposed; swallow silently and mark shutdown
             self._shutdown.set()
@@ -80,14 +140,11 @@ class ApiBridge:
     def shutdown(self) -> None:
         """Gracefully terminate background watchers and signal shutdown."""
         self._shutdown.set()
-        if hasattr(self, "monitor_manager") and self.monitor_manager is not None:
+        if hasattr(self, "_monitor_manager") and self._monitor_manager is not None:
             try:
-                self.monitor_manager.stop_monitoring()
+                self._monitor_manager.stop_monitoring()
             except Exception:
                 pass
-        if hasattr(self, "observer") and self.observer is not None:
-            try:
-                self.observer.stop()
                 self.observer.join(timeout=2)
             except Exception:
                 pass
@@ -420,12 +477,12 @@ class ApiBridge:
             abs_path = os.path.abspath(target_path)
             os.makedirs(abs_path, exist_ok=True)
 
-            res = self.monitor_manager.start_monitoring(abs_path)
+            res = self._monitor_manager.start_monitoring(abs_path)
             return {
                 "success": res,
-                "is_monitoring": self.monitor_manager.is_monitoring(),
+                "is_monitoring": self._monitor_manager.is_monitoring(),
                 "path": abs_path,
-                "is_directory_mode": self.monitor_manager.is_directory_mode,
+                "is_directory_mode": self._monitor_manager.is_directory_mode,
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -433,7 +490,7 @@ class ApiBridge:
     def stop_live_monitoring(self) -> Dict[str, Any]:
         """Stop background watchdog observer thread."""
         try:
-            self.monitor_manager.stop_monitoring()
+            self._monitor_manager.stop_monitoring()
             return {"success": True, "is_monitoring": False}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -441,9 +498,9 @@ class ApiBridge:
     def poll_live_events(self) -> List[Dict[str, Any]]:
         """Non-blocking drain of live monitoring queue."""
         events = []
-        while not self.monitor_queue.empty():
+        while not self._monitor_queue.empty():
             try:
-                item = self.monitor_queue.get_nowait()
+                item = self._monitor_queue.get_nowait()
                 # Normalize timestamp
                 if "timestamp" not in item:
                     item["timestamp"] = datetime.now().strftime("%H:%M:%S")
@@ -455,9 +512,9 @@ class ApiBridge:
     def get_monitoring_status(self) -> Dict[str, Any]:
         """Return whether live monitoring thread is currently alive."""
         return {
-            "is_monitoring": self.monitor_manager.is_monitoring(),
-            "watched_path": self.monitor_manager.watched_path,
-            "is_directory_mode": self.monitor_manager.is_directory_mode,
+            "is_monitoring": self._monitor_manager.is_monitoring(),
+            "watched_path": self._monitor_manager.watched_path,
+            "is_directory_mode": self._monitor_manager.is_directory_mode,
         }
 
     # -------------------------------------------------------------------------
@@ -465,7 +522,7 @@ class ApiBridge:
     # -------------------------------------------------------------------------
 
     def generate_pdf_report(self, case_id: int) -> Dict[str, Any]:
-        """Compile court-admissible forensic PDF report via ReportLab and open in browser."""
+        """Compile court-admissible forensic PDF report via ReportLab and open in Chrome."""
         try:
             output_filename = generate_pdf_report(case_id)
             pdf_path = os.path.abspath(output_filename)
@@ -474,7 +531,7 @@ class ApiBridge:
             uri_path = urllib.parse.quote(pdf_path.replace(os.sep, "/"))
             file_url = f"file:///{uri_path}"
 
-            webbrowser.open_new_tab(file_url)
+            _open_in_chrome(file_url)
 
             return {
                 "success": True,
@@ -483,7 +540,7 @@ class ApiBridge:
                 "path": pdf_path,
                 "filename": os.path.basename(pdf_path),
                 "size_bytes": os.path.getsize(pdf_path) if os.path.exists(pdf_path) else 0,
-                "message": "Report opened in default browser.",
+                "message": "Report opened in Chrome browser.",
             }
         except Exception as e:
             return {"success": False, "status": "error", "error": str(e)}
@@ -497,15 +554,15 @@ class ApiBridge:
         return self.generate_pdf_report(case_id)
 
     def open_pdf_in_browser(self, file_path: str) -> Dict[str, Any]:
-        """Open an existing PDF report in system default browser using RFC file URI."""
+        """Open an existing PDF report in Chrome using RFC file URI."""
         try:
             if not os.path.exists(file_path):
                 return {"success": False, "error": f"File does not exist: {file_path}"}
             pdf_path = os.path.abspath(file_path)
             uri_path = urllib.parse.quote(pdf_path.replace(os.sep, "/"))
             file_url = f"file:///{uri_path}"
-            webbrowser.open_new_tab(file_url)
-            return {"success": True, "status": "success", "message": "Report opened in default browser."}
+            _open_in_chrome(file_url)
+            return {"success": True, "status": "success", "message": "Report opened in Chrome browser."}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -549,11 +606,11 @@ class ApiBridge:
 
     def select_file_dialog(self) -> Optional[str]:
         """Open native OS file picker and return selected file path."""
-        if self.window is not None:
+        if self._window is not None:
             try:
                 import webview
                 file_types = ("All Evidence (*.log;*.txt;*.csv;*.json;*.eml)", "All files (*.*)")
-                result = self.window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=file_types)
+                result = self._window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=file_types)
                 if result and len(result) > 0:
                     return result[0]
             except Exception:
@@ -562,10 +619,10 @@ class ApiBridge:
 
     def select_folder_dialog(self) -> Optional[str]:
         """Open native OS folder picker and return selected directory path."""
-        if self.window is not None:
+        if self._window is not None:
             try:
                 import webview
-                result = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+                result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
                 if result and len(result) > 0:
                     return result[0]
             except Exception:

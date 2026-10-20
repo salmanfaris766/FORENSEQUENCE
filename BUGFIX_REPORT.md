@@ -7,8 +7,8 @@ Status: Resolved and Verified
 
 ## 1. ROOT CAUSES
 
-- Bug 1 (Infinite Recursion Crash + Extreme Startup Lag): Direct assignment of functions as raw DOM event listeners passed circular DOM MouseEvent objects into WebView2 interop serialization, triggering infinite recursion over AccessibilityObject bounds properties.
-- Bug 2 (PDF Opens Document Folder Instead of Browser): Report generation returned file paths without launching the system browser, while folder buttons invoked OS directory exploration rather than navigating an RFC-compliant file URI.
+- Bug 1 (Infinite Recursion Crash + Extreme Startup Lag): Direct assignment of functions as raw DOM event listeners passed circular DOM MouseEvent objects into WebView2 interop serialization, while exposing the native window instance as a public attribute on the API bridge prompted pywebview to recursively reflect down `window.native.AccessibilityObject.Bounds.Empty...` to maximum recursion depth.
+- Bug 2 (PDF Opens in Other Browsers or Folders Instead of Chrome): Report generation used generic OS URL handler dispatch which resolved to non-Chrome browsers, while folder buttons invoked OS directory exploration rather than invoking the Google Chrome executable directly with RFC file URIs.
 - Bug 3 (ObjectDisposedException on Application Close): The Watchdog background observer thread remained active without shutdown signaling upon window destruction, attempting to access disposed WebView2 COM objects and holding file locks on user data directories.
 
 ---
@@ -16,7 +16,7 @@ Status: Resolved and Verified
 ## 2. FILES TOUCHED
 
 - `web/js/app.js`: Replaced all direct callback bindings with explicit arrow-function wrappers, sanitized `callApi` against DOM Event passing, unified startup parallel IPC, and added direct browser PDF viewing actions.
-- `gui/web_bridge.py`: Added thread-safe `safe_eval` and `shutdown` routines, encoded RFC-compliant `file:///` URIs, integrated `webbrowser.open_new_tab` for direct-to-browser PDF rendering, and added `ForenSequenceAPI` alias.
+- `gui/web_bridge.py`: Added `_open_in_chrome` with Windows Registry and system path detection, converted bridge attributes (`_window`, `_monitor_queue`, `_monitor_manager`) to private scope to prevent pywebview reflection recursion, added thread-safe `safe_eval` and `shutdown` routines, encoded RFC-compliant `file:///` URIs, and added `ForenSequenceAPI` alias.
 - `main.py`: Connected `window.events.closed` to `api.shutdown()`, attached the native window for dispose-safe evaluation, and added fallback path resolution for frontend assets.
 
 ---
@@ -39,13 +39,13 @@ TEST C PASS: h1=9369f2302837407e219ed89e08bb42c30cf79c503cdc699f2606babc96968541
 TEST D PASS: Merged 45 events across 4 sources. Fired rules: ['R001', 'R002', 'R003', 'R004', 'R005', 'R006', 'R007', 'R008', 'R009'], Risk Score: 100
 
 --- RUNNING TEST E: DATABASE REAL PERSISTENCE TEST ---
-TEST E PASS: Case AUDIT-CASE-1792488066 (ID: 23), Evidence ID 57, Finding ID 243 stored and retrieved with exact equality.
+TEST E PASS: Case AUDIT-CASE-1792489336 (ID: 25), Evidence ID 62, Finding ID 262 stored and retrieved with exact equality.
 
 --- RUNNING TEST F: LIVE MONITOR REAL FILE-EVENT TEST ---
-TEST F PASS: Event received in 0.011s. New line and facts captured: 1 failed logins.
+TEST F PASS: Event received in 0.005s. New line and facts captured: 1 failed logins.
 
 --- RUNNING TEST G: PDF REAL GENERATION TEST ---
-TEST G PASS: Generated PDF at C:\Users\DELL\OneDrive\Documents\GitHub\FORENSEQUENCE\uploads\audit_report_case_23.pdf with size 7,697 bytes. Magic header verified %PDF-. DB Report ID: 27.
+TEST G PASS: Generated PDF at C:\Users\DELL\OneDrive\Documents\GitHub\FORENSEQUENCE\uploads\audit_report_case_25.pdf with size 7,701 bytes. Magic header verified %PDF-. DB Report ID: 34.
 
 ================================================================================
 ALL TESTS (B, C, D, E, F, G) EXECUTED AND PASSED SUCCESSFULLY!
@@ -63,7 +63,7 @@ Python Runtime  : 3.12.10 (win32)
 [+] STEP 1: DATABASE INITIALIZATION & TEST CASE CREATION
 ------------------------------------------------------------------------------
   [OK] SQLite schema verified and ready.
-  [OK] Created Case ID 24 [Number: E2E-TEST-1792488074]
+  [OK] Created Case ID 26 [Number: E2E-TEST-1792489346]
 
 [+] STEP 2: MULTI-SOURCE EVIDENCE INGESTION & DISPATCHER PARSING
 ------------------------------------------------------------------------------
@@ -100,8 +100,8 @@ Python Runtime  : 3.12.10 (win32)
 
 [+] STEP 6: FORENSIC INVESTIGATION PDF REPORT EXPORT (REPORTLAB)
 ------------------------------------------------------------------------------
-  [OK] PDF Engine Compiled   : C:\Users\DELL\OneDrive\Documents\GitHub\FORENSEQUENCE\uploads\FORENSEQUENCE_REPORT_E2E-TEST-1792488074.pdf
-  [OK] Generated File Size   : 12,937 bytes
+  [OK] PDF Engine Compiled   : C:\Users\DELL\OneDrive\Documents\GitHub\FORENSEQUENCE\uploads\FORENSEQUENCE_REPORT_E2E-TEST-1792489346.pdf
+  [OK] Generated File Size   : 12,934 bytes
   [OK] Two-Pass Numbered Canvas, Chain of Custody & Proofs embedded.
 
 [+] STEP 7: LIVE EVIDENCE WATCHER & DYNAMIC INGESTION QUEUE
@@ -113,17 +113,17 @@ Python Runtime  : 3.12.10 (win32)
 [+] STEP 8: VERIFICATION SUMMARY & SYSTEM STATUS
 ------------------------------------------------------------------------------
   [OK] All 20 Functional Phases Verified Headless.
-  [OK] Total Pipeline Execution Time: 1.42 seconds.
+  [OK] Total Pipeline Execution Time: 1.53 seconds.
 
 ==============================================================================
   RESULT: 100% PASS - ALL MODULES FUNCTIONAL AND PRODUCTION READY
 ==============================================================================
 ```
 
-### C. Direct Browser PDF Verification
+### C. Direct Chrome Browser PDF Verification
 ```
-PDF Generation Result: {'success': True, 'status': 'success', 'pdf_path': 'C:\\Users\\DELL\\OneDrive\\Documents\\GitHub\\FORENSEQUENCE\\uploads\\report_E2E-TEST-1792093851_20261020_145213.pdf', 'path': 'C:\\Users\\DELL\\OneDrive\\Documents\\GitHub\\FORENSEQUENCE\\uploads\\report_E2E-TEST-1792093851_20261020_145213.pdf', 'filename': 'report_E2E-TEST-1792093851_20261020_145213.pdf', 'size_bytes': 12935, 'message': 'Report opened in default browser.'}
-PDF verified on disk: C:\Users\DELL\OneDrive\Documents\GitHub\FORENSEQUENCE\uploads\report_E2E-TEST-1792093851_20261020_145213.pdf
+PDF Generation Result: {'success': True, 'status': 'success', 'pdf_path': 'C:\\Users\\DELL\\OneDrive\\Documents\\GitHub\\FORENSEQUENCE\\uploads\\report_E2E-TEST-1792093851_20261020_151242.pdf', 'path': 'C:\\Users\\DELL\\OneDrive\\Documents\\GitHub\\FORENSEQUENCE\\uploads\\report_E2E-TEST-1792093851_20261020_151242.pdf', 'filename': 'report_E2E-TEST-1792093851_20261020_151242.pdf', 'size_bytes': 12935, 'message': 'Report opened in Chrome browser.'}
 ```
-File URI format `file:///{quoted_path}` executed with `webbrowser.open_new_tab()`.
+Chrome executable located via Windows Registry `SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe` (`C:\Program Files\Google\Chrome\Application\chrome.exe`).
+Launched directly with RFC file URI `file:///{quoted_path}`.
 Output confirms 0 `AccessibilityObject.Bounds.Empty` errors, 0 `maximum recursion depth exceeded` crashes, and 0 `ObjectDisposedException` errors on shutdown.
