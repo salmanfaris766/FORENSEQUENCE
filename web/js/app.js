@@ -34,7 +34,20 @@ const panelsInitialized = {
 async function callApi(methodName, ...args) {
   if (window.pywebview && window.pywebview.api && typeof window.pywebview.api[methodName] === "function") {
     try {
-      return await window.pywebview.api[methodName](...args);
+      // Guard against passing DOM Event objects or circular structures to pywebview
+      const cleanArgs = args
+        .filter((arg) => arg !== undefined)
+        .map((arg) => {
+          if (
+            arg instanceof Event ||
+            (arg && typeof arg === "object" && ("target" in arg || "srcElement" in arg || "bubbles" in arg || "nativeEvent" in arg))
+          ) {
+            return undefined;
+          }
+          return arg;
+        })
+        .filter((arg) => arg !== undefined);
+      return await window.pywebview.api[methodName](...cleanArgs);
     } catch (err) {
       console.error(`API Call [${methodName}] failed:`, err);
       showToast("API ERROR", err.toString(), true);
@@ -111,16 +124,9 @@ async function initStartup() {
   bridgeInitialized = true;
   console.log("Initializing parallel IPC startup sequence...");
 
-  const api = window.pywebview ? window.pywebview.api : null;
-  const pDashboard = api && typeof api.get_dashboard_data === "function"
-    ? api.get_dashboard_data()
-    : callApi("get_dashboard_data");
-  const pSettings = api && typeof api.get_settings === "function"
-    ? api.get_settings()
-    : callApi("get_settings");
-  const pCases = api && typeof api.get_cases === "function"
-    ? api.get_cases()
-    : callApi("get_cases");
+  const pDashboard = callApi("get_dashboard_data");
+  const pSettings = callApi("get_settings");
+  const pCases = callApi("get_cases");
 
   Promise.all([pDashboard, pSettings, pCases])
     .then(([dashData, settings, casesData]) => {
@@ -339,7 +345,9 @@ async function renderDashboard(preloadedData = null) {
       });
     });
 
-    document.getElementById("btn-quick-new-case")?.addEventListener("click", openNewCaseModal);
+    document.getElementById("btn-quick-new-case")?.addEventListener("click", () => {
+      openNewCaseModal();
+    });
     panelsInitialized.dashboard = true;
   }
 
@@ -694,7 +702,9 @@ async function renderCasesView() {
       </div>
     `;
 
-    document.getElementById("btn-create-case-view")?.addEventListener("click", openNewCaseModal);
+    document.getElementById("btn-create-case-view")?.addEventListener("click", () => {
+      openNewCaseModal();
+    });
     panelsInitialized.cases = true;
   }
 
@@ -781,8 +791,8 @@ async function renderEvidenceView() {
     `;
 
     const sel = document.getElementById("evidence-case-select");
-    sel?.addEventListener("change", () => {
-      AppState.activeCaseId = parseInt(sel.value);
+    sel?.addEventListener("change", (e) => {
+      AppState.activeCaseId = parseInt(e.target.value);
       loadEvidenceForCase(AppState.activeCaseId);
     });
 
@@ -917,8 +927,8 @@ async function renderAnalysisView() {
     `;
 
     const sel = document.getElementById("analysis-case-select");
-    sel?.addEventListener("change", () => {
-      AppState.activeCaseId = parseInt(sel.value);
+    sel?.addEventListener("change", (e) => {
+      AppState.activeCaseId = parseInt(e.target.value);
       loadAnalysisForCase(AppState.activeCaseId);
     });
 
@@ -1275,8 +1285,8 @@ async function renderReportsView() {
     `;
 
     const sel = document.getElementById("report-case-select");
-    sel?.addEventListener("change", () => {
-      AppState.activeCaseId = parseInt(sel.value);
+    sel?.addEventListener("change", (e) => {
+      AppState.activeCaseId = parseInt(e.target.value);
       loadReportReaderForCase(AppState.activeCaseId);
     });
 
@@ -1284,8 +1294,8 @@ async function renderReportsView() {
       if (!AppState.activeCaseId) return;
       showToast("COMPILING REPORT", "Generating court-admissible PDF...");
       const res = await callApi("generate_pdf_report", AppState.activeCaseId);
-      if (res && res.success) {
-        showToast("PDF GENERATED", `Saved to: ${res.filename}`);
+      if (res && (res.success || res.status === "success")) {
+        showToast("PDF READY", res.message || `Saved to: ${res.filename || "report"}`);
         loadReportReaderForCase(AppState.activeCaseId);
       } else {
         showToast("EXPORT ERROR", res?.error || "Error compiling report", true);
@@ -1374,7 +1384,10 @@ async function loadReportReaderForCase(caseId) {
                   (r) => `
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-secondary);">
                   <span class="mono-hash">${r.report_path}</span>
-                  <button class="liquid-btn secondary btn-open-folder" data-path="${r.report_path}" style="height: 24px; padding: 0 10px; font-size: 9px;">OPEN IN FOLDER</button>
+                  <div style="display: flex; gap: 8px;">
+                    <button class="liquid-btn primary btn-view-pdf" data-path="${r.report_path}" style="height: 24px; padding: 0 10px; font-size: 9px;">VIEW IN BROWSER</button>
+                    <button class="liquid-btn secondary btn-open-folder" data-path="${r.report_path}" style="height: 24px; padding: 0 10px; font-size: 9px;">OPEN IN FOLDER</button>
+                  </div>
                 </div>
               `
                 )
@@ -1384,9 +1397,15 @@ async function loadReportReaderForCase(caseId) {
     </div>
   `;
 
+  reader.querySelectorAll(".btn-view-pdf").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      callApi("open_pdf_in_browser", String(btn.dataset.path));
+    });
+  });
+
   reader.querySelectorAll(".btn-open-folder").forEach((btn) => {
     btn.addEventListener("click", () => {
-      callApi("open_file_location", btn.dataset.path);
+      callApi("open_file_location", String(btn.dataset.path));
     });
   });
 }
@@ -1469,7 +1488,32 @@ function applySettings(settings) {
 // SLIDE-IN CASE DETAIL DRAWER
 // =============================================================================
 function initDrawer() {
-  document.getElementById("btn-close-drawer")?.addEventListener("click", closeCaseDrawer);
+  document.getElementById("btn-close-drawer")?.addEventListener("click", () => {
+    closeCaseDrawer();
+  });
+
+  document.getElementById("btn-drawer-run-ai")?.addEventListener("click", async () => {
+    if (!AppState.activeCaseId) return;
+    showToast("RUNNING AI ANALYSIS", "Forward Chaining deduction in progress...");
+    const res = await callApi("run_analysis", AppState.activeCaseId);
+    if (res && res.success) {
+      showToast("ANALYSIS COMPLETE", `Derived ${res.findings_count} findings`);
+      openCaseDrawer(AppState.activeCaseId);
+    } else {
+      showToast("ANALYSIS ERROR", res?.error || "Error running analysis", true);
+    }
+  });
+
+  document.getElementById("btn-drawer-pdf")?.addEventListener("click", async () => {
+    if (!AppState.activeCaseId) return;
+    showToast("COMPILING REPORT", "Generating court-admissible PDF...");
+    const res = await callApi("generate_pdf_report", AppState.activeCaseId);
+    if (res && (res.success || res.status === "success")) {
+      showToast("PDF READY", res.message || "Report opened in default browser.");
+    } else {
+      showToast("EXPORT ERROR", res?.error || "Error generating report", true);
+    }
+  });
 }
 
 async function openCaseDrawer(caseId) {
@@ -1606,7 +1650,9 @@ function closeCaseDrawer() {
 // MODAL DIALOGS (NEW CASE)
 // =============================================================================
 function initModal() {
-  document.getElementById("btn-modal-close")?.addEventListener("click", closeModal);
+  document.getElementById("btn-modal-close")?.addEventListener("click", () => {
+    closeModal();
+  });
 }
 
 function openNewCaseModal() {
@@ -1643,7 +1689,9 @@ function openNewCaseModal() {
 
   overlay.classList.remove("hidden");
 
-  document.getElementById("btn-modal-cancel")?.addEventListener("click", closeModal);
+  document.getElementById("btn-modal-cancel")?.addEventListener("click", () => {
+    closeModal();
+  });
   document.getElementById("btn-modal-submit")?.addEventListener("click", async () => {
     const num = document.getElementById("modal-case-num").value.trim();
     const name = document.getElementById("modal-case-name").value.trim();

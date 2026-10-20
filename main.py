@@ -16,7 +16,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from gui.web_bridge import ApiBridge
+from gui.web_bridge import ApiBridge, ForenSequenceAPI
+
+
+def on_window_closed(api: ApiBridge) -> None:
+    """Handle graceful shutdown on window close to prevent WebView2 ObjectDisposedException."""
+    api.shutdown()
 
 
 def main() -> None:
@@ -26,24 +31,29 @@ def main() -> None:
     """
     html_file = PROJECT_ROOT / "web" / "index.html"
     if not html_file.exists():
+        html_file = PROJECT_ROOT / "ui" / "index.html"
+    if not html_file.exists():
         raise FileNotFoundError(f"Frontend bundle missing at: {html_file}")
 
     # Instantiate Python API Bridge
-    api = ApiBridge()
+    api = ForenSequenceAPI()
 
     # Create native desktop window
     window = webview.create_window(
-        title="FORENSEQUENCE — Cyber Forensics & Threat Intelligence Workstation",
+        title="FORENSEQUENCE - Digital Forensic Assistant",
         url=str(html_file),
         js_api=api,
-        width=1440,
-        height=900,
-        min_size=(1024, 640),
+        width=1366,
+        height=820,
+        min_size=(1200, 720),
         background_color="#020505",
     )
 
-    # Bind window instance to bridge for native OS file pickers
-    api.set_window(window)
+    # Bind window instance to bridge for native OS file pickers and safe_eval
+    api.attach_window(window)
+
+    # Register graceful shutdown event handler
+    window.events.closed += lambda: on_window_closed(api)
 
     # Start PyWebview event loop
     webview.start(debug=False)
@@ -51,4 +61,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 

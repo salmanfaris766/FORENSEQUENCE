@@ -12,6 +12,9 @@ import shutil
 import hashlib
 import queue
 import subprocess
+import threading
+import urllib.parse
+import webbrowser
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, List
@@ -51,13 +54,43 @@ class ApiBridge:
 
     def __init__(self, window=None):
         self.window = window
+        self._shutdown = threading.Event()
         self.monitor_queue = queue.Queue()
         self.monitor_manager = LiveMonitorManager(event_queue=self.monitor_queue)
         initialize_db()
 
-    def set_window(self, window) -> None:
+    def attach_window(self, window) -> None:
         """Bind the active pywebview window instance."""
         self.window = window
+
+    def set_window(self, window) -> None:
+        """Alias for attach_window."""
+        self.attach_window(window)
+
+    def safe_eval(self, js_code: str) -> None:
+        """Thread-safe and dispose-safe evaluation of JavaScript in the window."""
+        if self._shutdown.is_set() or self.window is None:
+            return
+        try:
+            self.window.evaluate_js(js_code)
+        except Exception:
+            # WebView2 already disposed; swallow silently and mark shutdown
+            self._shutdown.set()
+
+    def shutdown(self) -> None:
+        """Gracefully terminate background watchers and signal shutdown."""
+        self._shutdown.set()
+        if hasattr(self, "monitor_manager") and self.monitor_manager is not None:
+            try:
+                self.monitor_manager.stop_monitoring()
+            except Exception:
+                pass
+        if hasattr(self, "observer") and self.observer is not None:
+            try:
+                self.observer.stop()
+                self.observer.join(timeout=2)
+            except Exception:
+                pass
 
     # -------------------------------------------------------------------------
     # Dashboard API
@@ -432,15 +465,47 @@ class ApiBridge:
     # -------------------------------------------------------------------------
 
     def generate_pdf_report(self, case_id: int) -> Dict[str, Any]:
-        """Compile court-admissible forensic PDF report via ReportLab."""
+        """Compile court-admissible forensic PDF report via ReportLab and open in browser."""
         try:
-            pdf_path = generate_pdf_report(case_id)
+            output_filename = generate_pdf_report(case_id)
+            pdf_path = os.path.abspath(output_filename)
+
+            # Build RFC-compliant file URI (handles spaces, unicode, backslashes on Windows)
+            uri_path = urllib.parse.quote(pdf_path.replace(os.sep, "/"))
+            file_url = f"file:///{uri_path}"
+
+            webbrowser.open_new_tab(file_url)
+
             return {
                 "success": True,
+                "status": "success",
                 "pdf_path": pdf_path,
+                "path": pdf_path,
                 "filename": os.path.basename(pdf_path),
                 "size_bytes": os.path.getsize(pdf_path) if os.path.exists(pdf_path) else 0,
+                "message": "Report opened in default browser.",
             }
+        except Exception as e:
+            return {"success": False, "status": "error", "error": str(e)}
+
+    def generate_report(self, case_id: int) -> Dict[str, Any]:
+        """Alias for generate_pdf_report."""
+        return self.generate_pdf_report(case_id)
+
+    def export_pdf(self, case_id: int) -> Dict[str, Any]:
+        """Alias for generate_pdf_report."""
+        return self.generate_pdf_report(case_id)
+
+    def open_pdf_in_browser(self, file_path: str) -> Dict[str, Any]:
+        """Open an existing PDF report in system default browser using RFC file URI."""
+        try:
+            if not os.path.exists(file_path):
+                return {"success": False, "error": f"File does not exist: {file_path}"}
+            pdf_path = os.path.abspath(file_path)
+            uri_path = urllib.parse.quote(pdf_path.replace(os.sep, "/"))
+            file_url = f"file:///{uri_path}"
+            webbrowser.open_new_tab(file_url)
+            return {"success": True, "status": "success", "message": "Report opened in default browser."}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -506,3 +571,8 @@ class ApiBridge:
             except Exception:
                 pass
         return None
+
+
+# Alias for compatibility with ForenSequenceAPI naming
+ForenSequenceAPI = ApiBridge
+
