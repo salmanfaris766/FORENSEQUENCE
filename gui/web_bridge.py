@@ -423,7 +423,7 @@ class ApiBridge:
             engine = ForwardChainingEngine()
             ai_result = engine.evaluate(unified_facts)
             findings = ai_result.get("findings", [])
-            proof_steps = ai_result.get("proof_trace", [])
+            proof_steps = ai_result.get("reasoning_trace") or ai_result.get("proof_trace", [])
 
             # Persist findings to database
             severity_map = {"LOW": 10, "MEDIUM": 20, "HIGH": 50, "CRITICAL": 80}

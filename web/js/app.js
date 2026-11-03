@@ -1042,7 +1042,7 @@ async function loadAnalysisForCase(caseId, proofSteps = null) {
         <div style="margin-bottom: 6px;">
           <span style="color: var(--text-muted);">[STEP ${String(i + 1).padStart(2, "0")}]</span>
           <span style="color: var(--cyan); font-weight: 700;">[${step.rule_code || "RULE"}]</span>
-          <span style="color: var(--text-main);">${step.rule_name || step.description || JSON.stringify(step)}</span>
+          <span style="color: var(--text-main);">${step.name || step.rule_name || step.explanation || step.description || ""}</span>
           ${step.derived_fact ? `<div style="color: var(--mint); padding-left: 20px;">&rarr; Inferred fact: ${step.derived_fact}</div>` : ""}
         </div>
       `
