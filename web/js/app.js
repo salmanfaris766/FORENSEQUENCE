@@ -122,6 +122,7 @@ function hideGlobalLoader() {
 async function initStartup() {
   if (bridgeInitialized) return;
   bridgeInitialized = true;
+  closeCaseDrawer();
   console.log("Initializing parallel IPC startup sequence...");
 
   try {
@@ -212,6 +213,9 @@ function initNavigation() {
 function switchTab(route, force = false) {
   if (!force && AppState.currentRoute === route && panelsInitialized[route]) return;
   AppState.currentRoute = route;
+
+  // Always close case drawer when navigating tabs
+  closeCaseDrawer();
 
   // 1. Update toolbar title
   const title = document.getElementById("toolbar-title");
@@ -1496,8 +1500,21 @@ function applySettings(settings) {
 // SLIDE-IN CASE DETAIL DRAWER
 // =============================================================================
 function initDrawer() {
-  document.getElementById("btn-close-drawer")?.addEventListener("click", () => {
-    closeCaseDrawer();
+  const btnClose = document.getElementById("btn-close-drawer");
+  if (btnClose) {
+    btnClose.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCaseDrawer();
+    });
+  }
+
+  // Also close drawer and modals on Escape key
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeCaseDrawer();
+      closeModal();
+    }
   });
 
   document.getElementById("btn-drawer-run-ai")?.addEventListener("click", async () => {

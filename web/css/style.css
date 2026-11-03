@@ -982,13 +982,19 @@ body, html {
   display: flex;
   flex-direction: column;
   transform: translate3d(calc(100% + 40px), 0, 0);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s;
   will-change: transform;
   z-index: 1000;
+  backface-visibility: hidden;
+  perspective: 1000px;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .glass-drawer.open {
-  transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0) !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 
 .drawer-header {
@@ -1544,7 +1550,6 @@ body, html {
 .glass-sidebar,
 .glass-toolbar,
 .glass-statusbar,
-.glass-drawer,
 .slide-overlay,
 .modal,
 .modal-overlay,
