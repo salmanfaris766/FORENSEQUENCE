@@ -741,8 +741,12 @@ async function renderCasesView() {
               <td><span class="metric-pill findings">${c.findings_count} FINDINGS</span></td>
               <td><span class="neon-dot ${dotCls}" style="display: inline-block; vertical-align: middle; margin-right: 6px;"></span> ${status}</td>
               <td class="mono-hash">${(c.created_at || "").slice(0, 16)}</td>
-              <td style="text-align: right;">
+              <td style="text-align: right; display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
                 <button class="liquid-btn secondary btn-case-open" data-id="${c.id}" style="height: 28px; padding: 0 12px; font-size: 10px;">DRILL DOWN</button>
+                ${status === "CLOSED"
+                  ? `<button class="liquid-btn primary btn-case-reopen" data-id="${c.id}" style="height: 28px; padding: 0 12px; font-size: 10px;">REOPEN</button>`
+                  : `<button class="liquid-btn danger btn-case-close" data-id="${c.id}" style="height: 28px; padding: 0 12px; font-size: 10px;">CLOSE</button>`
+                }
               </td>
             </tr>
           `;
@@ -756,8 +760,45 @@ async function renderCasesView() {
         });
       });
 
+      tbody.querySelectorAll(".btn-case-close").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const cid = parseInt(btn.dataset.id, 10);
+          btn.disabled = true;
+          btn.textContent = "CLOSING...";
+          const res = await callApi("update_case_status", cid, "CLOSED");
+          if (res && res.success) {
+            showToast("CASE CLOSED", "Case has been archived as CLOSED.");
+            await renderCasesView();
+          } else {
+            showToast("ERROR", res?.error || "Failed to close case.", true);
+            btn.disabled = false;
+            btn.textContent = "CLOSE";
+          }
+        });
+      });
+
+      tbody.querySelectorAll(".btn-case-reopen").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const cid = parseInt(btn.dataset.id, 10);
+          btn.disabled = true;
+          btn.textContent = "REOPENING...";
+          const res = await callApi("update_case_status", cid, "OPEN");
+          if (res && res.success) {
+            showToast("CASE REOPENED", "Case status reset to OPEN.");
+            await renderCasesView();
+          } else {
+            showToast("ERROR", res?.error || "Failed to reopen case.", true);
+            btn.disabled = false;
+            btn.textContent = "REOPEN";
+          }
+        });
+      });
+
       tbody.querySelectorAll(".clickable-case-row").forEach((row) => {
-        row.addEventListener("click", () => {
+        row.addEventListener("click", (e) => {
+          if (e.target.closest("button")) return;
           openCaseDrawer(row.dataset.id);
         });
       });
