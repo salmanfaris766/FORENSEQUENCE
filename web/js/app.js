@@ -124,36 +124,44 @@ async function initStartup() {
   bridgeInitialized = true;
   console.log("Initializing parallel IPC startup sequence...");
 
-  const pDashboard = callApi("get_dashboard_data");
-  const pSettings = callApi("get_settings");
-  const pCases = callApi("get_cases");
+  try {
+    const [dashData, settings, casesData] = await Promise.all([
+      callApi("get_dashboard_data"),
+      callApi("get_settings"),
+      callApi("get_cases")
+    ]);
 
-  Promise.all([pDashboard, pSettings, pCases])
-    .then(([dashData, settings, casesData]) => {
-      if (dashData) AppState.dashboardData = dashData;
-      if (settings) AppState.settings = settings;
-      if (casesData) {
-        AppState.cases = casesData;
-        if (casesData.length > 0 && !AppState.activeCaseId) {
-          AppState.activeCaseId = casesData[0].id;
-        }
+    if (dashData) AppState.dashboardData = dashData;
+    if (settings) {
+      AppState.settings = settings;
+      applySettings(settings);
+    }
+    if (casesData) {
+      AppState.cases = casesData;
+      if (casesData.length > 0 && !AppState.activeCaseId) {
+        AppState.activeCaseId = casesData[0].id;
       }
+    }
 
-      // Render dashboard with preloaded data instantly
-      renderDashboard(dashData);
-      if (settings) applySettings(settings);
+    // Render dashboard with preloaded data instantly
+    await renderDashboard(dashData);
 
-      // Dismiss loader immediately as soon as data arrives (maximum 300ms total transition)
-      hideGlobalLoader();
+    // Programmatically trigger the default tab to show
+    switchTab("dashboard", true);
+    const navDash = document.getElementById("nav-dashboard") || document.querySelector('.nav-item[data-route="dashboard"]');
+    if (navDash) {
+      navDash.click();
+    }
 
-      // Start non-blocking background telemetry monitor
-      startMonitoringPoller();
-    })
-    .catch((err) => {
-      console.error("Parallel startup initialization failed:", err);
-      renderDashboard(null);
-      hideGlobalLoader();
-    });
+    // Start non-blocking background telemetry monitor
+    startMonitoringPoller();
+  } catch (err) {
+    console.error("Parallel startup initialization failed:", err);
+    switchTab("dashboard", true);
+  } finally {
+    // Dismiss loader immediately as soon as data arrives
+    hideGlobalLoader();
+  }
 }
 
 // PyWebview Bridge Event Binding
@@ -178,14 +186,14 @@ document.addEventListener("DOMContentLoaded", () => {
       if (window.pywebview && window.pywebview.api) {
         clearInterval(interval);
         initStartup();
-      } else if (checkCount > 15) {
+      } else if (checkCount > 10) {
         clearInterval(interval);
         if (!bridgeInitialized) {
-          console.warn("Pywebview bridge not detected within 3 seconds, launching standalone state.");
+          console.warn("Pywebview bridge not detected, initializing fallback standalone state.");
           initStartup();
         }
       }
-    }, 200);
+    }, 150);
   }
 });
 
@@ -201,8 +209,8 @@ function initNavigation() {
   });
 }
 
-function switchTab(route) {
-  if (AppState.currentRoute === route && panelsInitialized[route]) return;
+function switchTab(route, force = false) {
+  if (!force && AppState.currentRoute === route && panelsInitialized[route]) return;
   AppState.currentRoute = route;
 
   // 1. Update toolbar title
@@ -235,7 +243,7 @@ function switchTab(route) {
 async function loadRouteData(route) {
   switch (route) {
     case "dashboard":
-      await renderDashboard();
+      await renderDashboard(AppState.dashboardData);
       break;
     case "cases":
       await renderCasesView();
@@ -1140,7 +1148,7 @@ async function renderMonitorView() {
       <!-- Monitor Controls Bar -->
       <div class="glass-card">
         <div class="monitor-controls-bar">
-          <input type="text" id="monitor-target-path" class="search-pill" style="flex: 1; height: 38px;" placeholder="Enter file or directory path to observe...">
+          <input type="text" id="monitor-target-path" class="form-input" style="flex: 1; height: 38px; border-radius: var(--radius-pill); padding: 0 14px;" placeholder="Enter file or directory path to observe...">
           <button class="liquid-btn secondary" id="btn-browse-monitor">BROWSE FOLDER</button>
           <button class="liquid-btn primary" id="btn-toggle-monitor">START MONITORING</button>
         </div>
@@ -1427,12 +1435,12 @@ async function renderSettingsView() {
       <div class="glass-card" style="max-width: 640px; display: flex; flex-direction: column; gap: 16px;">
         <div>
           <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">DEFAULT INVESTIGATOR</label>
-          <input type="text" id="cfg-investigator" class="search-pill" style="width: 100%; height: 38px;">
+          <input type="text" id="cfg-investigator" class="form-input" style="width: 100%; height: 38px; border-radius: var(--radius-pill); padding: 0 14px;">
         </div>
 
         <div>
           <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">EXPORT DIRECTORY</label>
-          <input type="text" id="cfg-export" class="search-pill" style="width: 100%; height: 38px;">
+          <input type="text" id="cfg-export" class="form-input" style="width: 100%; height: 38px; border-radius: var(--radius-pill); padding: 0 14px;">
         </div>
 
         <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 8px;">
@@ -1442,7 +1450,7 @@ async function renderSettingsView() {
 
         <div style="display: flex; align-items: center; justify-content: space-between;">
           <span style="font-size: 12px; font-weight: 700; color: var(--text-main);">Live Watcher Polling Interval (ms)</span>
-          <input type="number" id="cfg-poll" class="search-pill" style="width: 120px; height: 34px; text-align: center;">
+          <input type="number" id="cfg-poll" class="form-input" style="width: 120px; height: 34px; text-align: center; border-radius: var(--radius-pill); padding: 0 10px;">
         </div>
       </div>
     `;
@@ -1666,19 +1674,19 @@ function openNewCaseModal() {
     <div style="display: flex; flex-direction: column; gap: 14px;">
       <div>
         <label style="display: block; font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">CASE NUMBER</label>
-        <input type="text" id="modal-case-num" class="search-pill" style="width: 100%; height: 36px;" value="${defaultNum}">
+        <input type="text" id="modal-case-num" class="form-input" style="width: 100%; height: 36px; border-radius: var(--radius-pill); padding: 0 14px;" value="${defaultNum}">
       </div>
       <div>
         <label style="display: block; font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">CASE TITLE</label>
-        <input type="text" id="modal-case-name" class="search-pill" style="width: 100%; height: 36px;" placeholder="e.g. Host Intrusion and Data Exfiltration">
+        <input type="text" id="modal-case-name" class="form-input" style="width: 100%; height: 36px; border-radius: var(--radius-pill); padding: 0 14px;" placeholder="e.g. Host Intrusion and Data Exfiltration">
       </div>
       <div>
         <label style="display: block; font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">ASSIGNED INVESTIGATOR</label>
-        <input type="text" id="modal-case-inv" class="search-pill" style="width: 100%; height: 36px;" value="Salman">
+        <input type="text" id="modal-case-inv" class="form-input" style="width: 100%; height: 36px; border-radius: var(--radius-pill); padding: 0 14px;" value="Salman">
       </div>
       <div>
         <label style="display: block; font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px;">CASE DESCRIPTION</label>
-        <textarea id="modal-case-desc" class="search-pill" style="width: 100%; height: 70px; border-radius: 14px; padding: 10px; resize: none;" placeholder="Provide scope of forensic investigation..."></textarea>
+        <textarea id="modal-case-desc" class="form-input" style="width: 100%; height: 70px; border-radius: 14px; padding: 10px; resize: none;" placeholder="Provide scope of forensic investigation..."></textarea>
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
         <button class="liquid-btn secondary" id="btn-modal-cancel">CANCEL</button>

@@ -502,27 +502,39 @@ body, html {
 }
 
 /* =============================================================================
-   INSTANT HARDWARE-ACCELERATED VIEW PANELS (ZERO TEARDOWN / 60 FPS)
+   BUTTERFLOWY TAB SWITCHING ANIMATION & GPU HARDWARE ACCELERATION
 ============================================================================= */
+.tab-content {
+  display: none;
+  opacity: 0;
+}
+
+.tab-content.active {
+  display: block;
+  animation: liquidFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .view-panel {
   display: none;
+  opacity: 0;
   width: 100%;
-  transform: translateZ(0);
 }
 
 .view-panel.active {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  animation: fadeIn 0.15s ease-out;
+  animation: liquidFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes fadeIn {
-  from {
+@keyframes liquidFadeIn {
+  0% {
     opacity: 0;
+    transform: translateY(10px) scale(0.99);
   }
-  to {
+  100% {
     opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -1521,4 +1533,83 @@ body, html {
   color: var(--text-muted);
   font-size: 20px;
   cursor: pointer;
+}
+
+/* =============================================================================
+   GPU HARDWARE ACCELERATION & LIQUID MOTION
+============================================================================= */
+.glass-panel,
+.glass-card,
+.sidebar,
+.glass-sidebar,
+.glass-toolbar,
+.glass-statusbar,
+.glass-drawer,
+.slide-overlay,
+.modal,
+.modal-overlay,
+.modal-card {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform, opacity;
+}
+
+.nav-item,
+.btn,
+.liquid-btn,
+button {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-item:active,
+.btn:active,
+.liquid-btn:active,
+button:active {
+  transform: translateY(2px) scale(0.98);
+}
+
+/* =============================================================================
+   HIGH CONTRAST FORM CONTROLS & TYPED TEXT VISIBILITY
+============================================================================= */
+input,
+textarea,
+select,
+.form-control,
+.form-input {
+  background-color: rgba(8, 20, 19, 0.6) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(45, 227, 200, 0.3);
+  caret-color: #2DE3C8;
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+.form-control:focus,
+.form-input:focus {
+  border-color: #2DE3C8 !important;
+  outline: none;
+  box-shadow: 0 0 8px rgba(45, 227, 200, 0.4);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  background-color: transparent !important;
+}
+
+select option {
+  background-color: #081413 !important;
+  color: #FFFFFF !important;
+}
+
+.search-pill input {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
