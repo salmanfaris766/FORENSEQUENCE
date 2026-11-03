@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FORENSEQUENCE — Cyber Forensics & Threat Intelligence Workstation</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- High-Performance CSS Animated Gradient Wave Background -->
+  <div id="bg-waves">
+    <div class="wave-orb wave-orb-1"></div>
+    <div class="wave-orb wave-orb-2"></div>
+    <div class="wave-orb wave-orb-3"></div>
+  </div>
+
+  <!-- Global Initialization Loader -->
+  <div id="global-loader">
+    <div class="loader-content">
+      <div class="liquid-spinner">
+        <div class="spinner-ring"></div>
+        <div class="spinner-core"></div>
+      </div>
+      <div class="loader-text">INITIALIZING FORENSIC KERNEL...</div>
+    </div>
+  </div>
+
+  <div id="app-root">
+    <!-- Floating Glass Sidebar -->
+    <aside class="glass-sidebar" id="sidebar">
+      <div class="brand-header">
+        <div class="brand-text">
+          <div class="brand-title">FORENSEQUENCE</div>
+          <div class="brand-subtitle">v2.0 SOC WORKSTATION</div>
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Navigation Groups -->
+      <nav class="nav-groups">
+        <div class="nav-group">
+          <div class="nav-group-title">WORKSPACE</div>
+          <button class="nav-item active" data-route="dashboard" id="nav-dashboard">
+            <span class="nav-dot"></span>
+            <span class="nav-label">Dashboard</span>
+          </button>
+          <button class="nav-item" data-route="cases" id="nav-cases">
+            <span class="nav-dot"></span>
+            <span class="nav-label">Case Investigation</span>
+          </button>
+          <button class="nav-item" data-route="evidence" id="nav-evidence">
+            <span class="nav-dot"></span>
+            <span class="nav-label">Evidence Explorer</span>
+          </button>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-group-title">OPERATIONS</div>
+          <button class="nav-item" data-route="analysis" id="nav-analysis">
+            <span class="nav-dot"></span>
+            <span class="nav-label">AI Threat Analysis</span>
+          </button>
+          <button class="nav-item" data-route="monitor" id="nav-monitor">
+            <span class="nav-dot"></span>
+            <span class="nav-label">Real-time Monitor</span>
+          </button>
+          <button class="nav-item" data-route="reports" id="nav-reports">
+            <span class="nav-dot"></span>
+            <span class="nav-label">Reports</span>
+          </button>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-group-title">SYSTEM</div>
+          <button class="nav-item" data-route="settings" id="nav-settings">
+            <span class="nav-dot"></span>
+            <span class="nav-label">Settings</span>
+          </button>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="system-status-indicator">
+          <span class="status-pulse-dot"></span>
+          <span class="status-text">ENGINE READY</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Workstation Area -->
+    <div class="workstation-container">
+      <!-- Top Glass Toolbar -->
+      <header class="glass-toolbar">
+        <div class="toolbar-left">
+          <span class="toolbar-title" id="toolbar-title">SECURITY OPERATIONS</span>
+        </div>
+
+        <!-- Center Spotlight Search Bar -->
+        <div class="toolbar-center">
+          <div class="search-pill">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#507571" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="global-search" placeholder="Search cases, indicators, artifacts..." autocomplete="off">
+          </div>
+        </div>
+
+        <!-- Right Status Indicators -->
+        <div class="toolbar-right">
+          <div class="case-context-badge" id="case-context-badge">NO ACTIVE CASE</div>
+          <div class="live-status-box" id="live-status-box">
+            <span class="live-dot" id="live-dot"></span>
+            <span class="live-text" id="live-text">ONLINE</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Dynamic Hardware-Accelerated Viewport -->
+      <main id="app-viewport">
+        <section id="view-dashboard" class="view-panel active"></section>
+        <section id="view-cases" class="view-panel"></section>
+        <section id="view-evidence" class="view-panel"></section>
+        <section id="view-analysis" class="view-panel"></section>
+        <section id="view-monitor" class="view-panel"></section>
+        <section id="view-reports" class="view-panel"></section>
+        <section id="view-settings" class="view-panel"></section>
+      </main>
+
+      <!-- Bottom Status Bar -->
+      <footer class="glass-statusbar">
+        <div class="status-left">
+          <span>STATUS: ONLINE</span>
+          <span class="status-sep">|</span>
+          <span id="kb-rules-status">KNOWLEDGE BASE: 9 RULES ACTIVE</span>
+        </div>
+        <div class="status-center">
+          <span>FORENSIC WORKSTATION &bull; THREAT RECONSTRUCTION</span>
+        </div>
+        <div class="status-right" id="utc-clock">
+          --:--:-- UTC
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Slide-In Case Detail Drill-Down Drawer -->
+  <aside id="case-detail-drawer" class="glass-drawer">
+    <div class="drawer-header">
+      <button class="liquid-btn secondary btn-back" id="btn-close-drawer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        BACK
+      </button>
+      <div class="drawer-title-box">
+        <span class="drawer-case-num" id="drawer-case-num">CASE-XXXX</span>
+        <span class="drawer-case-name" id="drawer-case-name">Investigation Overview</span>
+      </div>
+      <div class="drawer-actions">
+        <button class="liquid-btn primary" id="btn-drawer-run-ai">RUN AI ANALYSIS</button>
+        <button class="liquid-btn secondary" id="btn-drawer-pdf">GENERATE PDF</button>
+      </div>
+    </div>
+
+    <div class="drawer-content" id="drawer-content">
+      <!-- Injected by app.js -->
+    </div>
+  </aside>
+
+  <!-- Modal Container (for New Case, etc.) -->
+  <div id="modal-container" class="modal-overlay hidden">
+    <div class="modal-card glass-card">
+      <div class="modal-header">
+        <h3 id="modal-title">New Investigation Case</h3>
+        <button class="modal-close" id="btn-modal-close">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- Injected dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Real-Time Toast Container -->
+  <div id="toast-container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

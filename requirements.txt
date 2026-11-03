@@ -1,6 +1,7 @@
-﻿ttkbootstrap
-watchdog
-pandas
-reportlab
-matplotlib
-pillow
+# FORENSEQUENCE - Production Requirements
+# Active runtime: Python 3.12, PyWebview desktop application
+# chart.js is loaded client-side via CDN in web/index.html (no Python package needed)
+
+pywebview==6.2.1
+watchdog==6.0.0
+reportlab==5.0.1
